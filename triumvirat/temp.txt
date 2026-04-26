@@ -1,0 +1,6 @@
+  loot: { itemId: string; chance: number }[];
+    "loot": [
+    "loot": [
+    "loot": [
+    "loot": [
+    "loot": [

@@ -1,0 +1,904 @@
+  name: string;
+  type: ItemType;
+  rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+  price: number;
+  stats?: ItemStats;
+  description: string;
+  healAmount?: number;
+  setName?: string;
+  maxSlots?: number; 
+  level?: number;
+}
+--
+    "id": "wpn_7",
+    "name": "Кровавый клинок",
+    "rarity": "epic",
+    "stats": {
+      "attack": 420,
+      "critRate": 10,
+      "critDamage": 30,
+      "agility": 5
+    },
+    "price": 88910,
+    "type": "weapon",
+    "description": "Оружие (epic)"
+  },
+  "wpn_8": {
+    "id": "wpn_8",
+    "name": "Великий Посох Архимага",
+    "rarity": "legendary",
+    "stats": {
+      "magicAttack": 1655,
+      "maxMp": 4110,
+--
+    "id": "arm_6",
+    "name": "Ледяная мантия теней",
+    "rarity": "epic",
+    "stats": {
+      "defense": 325,
+      "magicDefense": 405,
+      "maxMp": 750,
+      "maxHp": 50,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+    "price": 83310,
+    "type": "armor",
+    "description": "Броня (epic)"
+  },
+  "arm_7": {
+    "id": "arm_7",
+    "name": "Таинственная чешуя Дракона",
+    "rarity": "legendary",
+    "stats": {
+      "defense": 1265,
+      "magicDefense": 630,
+--
+    "id": "acc_5",
+    "name": "Древний кристалл Титана",
+    "rarity": "epic",
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+    "price": 70820,
+    "type": "accessory",
+    "description": "Аксессуар (epic)"
+  },
+  "acc_6": {
+    "id": "acc_6",
+    "name": "Сияющий венец Всевластия",
+    "rarity": "legendary",
+    "stats": {
+      "agility": 820,
+      "maxHp": 4320,
+--
+    "id": "cons_4",
+    "name": "Эликсир Жизни",
+    "rarity": "epic",
+    "healAmount": 1000,
+    "price": 1500,
+    "type": "consumable",
+    "description": "Восстанавливает 1000 ХП."
+  },
+  "wpn_100": {
+    "id": "wpn_100",
+    "name": "Добротный Инструмент",
+--
+    "name": "Ледяной Топор",
+    "type": "weapon",
+    "rarity": "epic",
+    "price": 68740,
+    "stats": {
+      "attack": 420,
+      "critRate": 10,
+      "critDamage": 30,
+      "agility": 5
+    },
+    "description": "Вместительный урон. Уникально для: Воин, Берсерк, Охотник",
+--
+    "name": "Эпический Топор берсерка",
+    "type": "weapon",
+    "rarity": "epic",
+    "price": 62680,
+    "stats": {
+      "attack": 420,
+      "critRate": 10,
+      "critDamage": 30,
+      "agility": 5
+    },
+    "description": "Вместительный урон. Уникально для: Воин, Берсерк, Охотник",
+--
+    "name": "Ледяной посох",
+    "type": "weapon",
+    "rarity": "epic",
+    "price": 76470,
+    "stats": {
+      "magicAttack": 420,
+      "maxMp": 1040,
+      "critRate": 10,
+      "critDamage": 30
+    },
+    "description": "Вместительный урон. Уникально для: Маг, Чернокнижник, Друид, Жрец, Алхимик, Шаман, Иллюзионист, Монах, Некромант",
+--
+    "name": "Эпический Лук",
+    "type": "weapon",
+    "rarity": "epic",
+    "price": 83910,
+    "stats": {
+      "attack": 420,
+      "critRate": 10,
+      "critDamage": 30,
+      "agility": 5
+    },
+    "description": "Вместительный урон. Уникально для: Лучник, Охотник",
+--
+    "name": "Ледяной Посох",
+    "type": "weapon",
+    "rarity": "epic",
+    "price": 80920,
+    "stats": {
+      "magicAttack": 420,
+      "maxMp": 1040,
+      "critRate": 10,
+      "critDamage": 30
+    },
+    "description": "Вместительный урон. Уникально для: Маг, Чернокнижник, Друид, Жрец, Алхимик, Шаман, Иллюзионист, Монах, Некромант",
+--
+    "name": "Эпический Кинжал",
+    "type": "weapon",
+    "rarity": "epic",
+    "price": 74750,
+    "stats": {
+      "magicAttack": 420,
+      "maxMp": 1040,
+      "critRate": 10,
+      "critDamage": 30
+    },
+    "description": "Вместительный урон. Уникально для: Разбойник, Ассасин, Иллюзионист",
+--
+    "name": "Могущественный Арбалет",
+    "type": "weapon",
+    "rarity": "epic",
+    "price": 75910,
+    "stats": {
+      "attack": 420,
+      "critRate": 10,
+      "critDamage": 30,
+      "agility": 5
+    },
+    "description": "Вместительный урон. Уникально для: Лучник, Инженер, Ассасин",
+--
+    "name": "Пылающий Коса",
+    "type": "weapon",
+    "rarity": "epic",
+    "price": 76350,
+    "stats": {
+      "magicAttack": 420,
+      "maxMp": 1040,
+      "critRate": 10,
+      "critDamage": 30
+    },
+    "description": "Вместительный урон. Уникально для: Некромант, Чернокнижник, Рыцарь Смерти, Маг Крови",
+--
+    "name": "Громовой Кинжал",
+    "type": "weapon",
+    "rarity": "epic",
+    "price": 64020,
+    "stats": {
+      "magicAttack": 420,
+      "maxMp": 1040,
+      "critRate": 10,
+      "critDamage": 30
+    },
+    "description": "Вместительный урон. Уникально для: Разбойник, Ассасин, Иллюзионист",
+--
+    "name": "Проклятый Перчатки",
+    "type": "weapon",
+    "rarity": "epic",
+    "price": 74470,
+    "stats": {
+      "attack": 420,
+      "critRate": 10,
+      "critDamage": 30,
+      "agility": 5
+    },
+    "description": "Вместительный урон. Уникально для: Боец, Монах",
+--
+    "name": "Призрачная Одеяние",
+    "type": "armor",
+    "rarity": "epic",
+    "price": 61040,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 405,
+      "maxMp": 750,
+      "maxHp": 50,
+      "resistPoison": 20,
+      "resistFire": 20
+--
+    "name": "Проклятая Латы",
+    "type": "armor",
+    "rarity": "epic",
+    "price": 63880,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Проклятая Кольчуга",
+    "type": "armor",
+    "rarity": "epic",
+    "price": 80180,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Эпическая Кожаная броня",
+    "type": "armor",
+    "rarity": "epic",
+    "price": 63410,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Драконья Латы",
+    "type": "armor",
+    "rarity": "epic",
+    "price": 77960,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Костяная Мантия",
+    "type": "armor",
+    "rarity": "epic",
+    "price": 87320,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 405,
+      "maxMp": 750,
+      "maxHp": 50,
+      "resistPoison": 20,
+      "resistFire": 20
+--
+    "name": "Эпическая Кожаная броня",
+    "type": "armor",
+    "rarity": "epic",
+    "price": 63710,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Эпическая Мантия",
+    "type": "armor",
+    "rarity": "epic",
+    "price": 60350,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 405,
+      "maxMp": 750,
+      "maxHp": 50,
+      "resistPoison": 20,
+      "resistFire": 20
+--
+    "name": "Ледяная Латы",
+    "type": "armor",
+    "rarity": "epic",
+    "price": 68450,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Темная Кожаная броня",
+    "type": "armor",
+    "rarity": "epic",
+    "price": 63380,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Проклятая Кольчуга",
+    "type": "armor",
+    "rarity": "epic",
+    "price": 81450,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Костяной Шляпа",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 16885,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Устрашающий Копюшон",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 19120,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Костяной Маска",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 18172,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Эпический Кожаный шлем",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 16865,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Эпический Кожаный шлем",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 17575,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Устрашающий Копюшон",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 20837,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Драконий Шляпа",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 19427,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Эпическая Шляпа",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 21472,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Могущественный Корона",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 22322,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Драконий Шляпа",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 20752,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Костяной Латный шлем",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 17845,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Коралловый Корона",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 16727,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Могущественный Корона",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 16405,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Драконий Кожаный шлем",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 15452,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Драконий Маска",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 17950,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Могущественный Корона",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 18552,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Эпический Кожаный шлем",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 20812,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Кровавый Кожаный шлем",
+    "type": "helmet",
+    "rarity": "epic",
+    "price": 16205,
+    "stats": {
+      "defense": 325,
+      "magicDefense": 150,
+      "maxHp": 810,
+      "resistPoison": 20,
+      "resistFire": 20
+    },
+--
+    "name": "Иллюзорный Браслет",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 73950,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Древний Кольцо",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 63350,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Иллюзорный Талисман",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 88540,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Платиновый Талисман",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 63210,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Проклятый Брошь",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 75150,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Кровавый Серьги",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 65910,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Иллюзорный Талисман",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 60970,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Платиновый Серьги",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 88430,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Проклятый Брошь",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 60710,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Эпический Браслет",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 86030,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Иллюзорный Брошь",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 60680,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Платиновый Амулет",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 71740,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "maxMp": 760,
+      "magicAttack": 15,
+      "critRate": 8,
+      "critDamage": 25
+--
+    "name": "Кровавый Брошь",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 64290,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Платиновый Амулет",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 88900,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "maxMp": 760,
+      "magicAttack": 15,
+      "critRate": 8,
+      "critDamage": 25
+--
+    "name": "Платиновый Серьги",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 84160,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Загадочный Браслет",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 67850,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Платиновый Кольцо",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 76210,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Могущественный Реликвия",
+    "type": "accessory",
+    "rarity": "epic",
+    "price": 89600,
+    "stats": {
+      "agility": 200,
+      "maxHp": 1020,
+      "attack": 15,
+      "critRate": 8,
+      "critDamage": 25
+    },
+--
+    "name": "Эпический Алмаз",
+    "type": "material",
+    "rarity": "epic",
+    "price": 4800,
+    "stats": {
+      "magicAttack": 48
+    },
+    "description": "Драгоценный камень для встройки в экипировку."
+  },
+  "gem_5": {
+    "id": "gem_5",
+--
+    "name": "Сверкающий Сапфир",
+    "type": "material",
+    "rarity": "epic",
+    "price": 4400,
+    "stats": {
+      "magicDefense": 44
+    },
+    "description": "Драгоценный камень для встройки в экипировку."
+  },
+  "gem_13": {
+    "id": "gem_13",
+--
+    "name": "Идеальный Алмаз",
+    "type": "material",
+    "rarity": "epic",
+    "price": 4800,
+    "stats": {
+      "maxMp": 48
+    },
+    "description": "Драгоценный камень для встройки в экипировку."
+  },
+  "gem_15": {
+    "id": "gem_15",
+--
+    "name": "Сверкающий Алмаз",
+    "type": "material",
+    "rarity": "epic",
+    "price": 2500,
+    "stats": {
+      "resistDark": 25
+    },
+    "description": "Драгоценный камень для встройки в экипировку."
+  },
+  "gem_35": {
+    "id": "gem_35",
+--
+    "name": "Идеальный Рубин",
+    "type": "material",
+    "rarity": "epic",
+    "price": 4400,
+    "stats": {
+      "critDamage": 44
+    },
+    "description": "Драгоценный камень для встройки в экипировку."
+  },
+  "gem_42": {
+    "id": "gem_42",
+--
+    "name": "Сверкающий Аметист",
+    "type": "material",
+    "rarity": "epic",
+    "price": 2100,
+    "stats": {
+      "resistFire": 21
+    },
+    "description": "Драгоценный камень для встройки в экипировку."
+  },
+  "gem_57": {
+    "id": "gem_57",
+--
+    "name": "Сверкающий Рубин",
+    "type": "material",
+    "rarity": "epic",
+    "price": 2000,
+    "stats": {
+      "attack": 20
+    },
+    "description": "Драгоценный камень для встройки в экипировку."
+  },
+  "gem_72": {
+    "id": "gem_72",
+--
+    "name": "Древний Аметист",
+    "type": "material",
+    "rarity": "epic",
+    "price": 3900,
+    "stats": {
+      "resistFire": 39
+    },
+    "description": "Драгоценный камень для встройки в экипировку."
+  },
+  "gem_77": {
+    "id": "gem_77",
+--
+    "name": "Эпический Алмаз",
+    "type": "material",
+    "rarity": "epic",
+    "price": 5200,
+    "stats": {
+      "defense": 52
+    },
+    "description": "Драгоценный камень для встройки в экипировку."
+  },
+  "gem_95": {
+    "id": "gem_95",
+    "name": "Эпический Топаз",
+    "type": "material",
+    "rarity": "epic",
+    "price": 3600,
+    "stats": {
+      "attack": 36
+    },
+    "description": "Драгоценный камень для встройки в экипировку."
+  },
+  "gem_96": {
+    "id": "gem_96",
+--
+  "enhance_stone_2": { "id": "enhance_stone_2", "name": "Кристалл Энд", "type": "material", "rarity": "uncommon", "price": 500, "description": "Используется у кузнеца для заточки снаряжения." },
+  "enhance_stone_3": { "id": "enhance_stone_3", "name": "Большой Кристалл Энд", "type": "material", "rarity": "rare", "price": 2000, "description": "Используется у кузнеца для заточки снаряжения." },
+  "enhance_stone_4": { "id": "enhance_stone_4", "name": "Великий Кристалл Энд", "type": "material", "rarity": "epic", "price": 10000, "description": "Используется у кузнеца для заточки снаряжения." },
+  "enhance_stone_5": { "id": "enhance_stone_5", "name": "Легендарный Кристалл Энд", "type": "material", "rarity": "legendary", "price": 50000, "description": "Используется у кузнеца для заточки снаряжения." },
+  "mat_pelt_1": { "id": "mat_pelt_1", "name": "Обычная Шкура", "type": "material", "rarity": "common", "price": 15, "description": "Шкура зверя. Можно продать в магазине." },
+  "mat_pelt_2": { "id": "mat_pelt_2", "name": "Крепкая Шкура", "type": "material", "rarity": "uncommon", "price": 60, "description": "Шкура сильного зверя. Можно продать в магазине." },
+  "mat_pelt_3": { "id": "mat_pelt_3", "name": "Редкая Шкура", "type": "material", "rarity": "rare", "price": 250, "description": "Ценная шкура. Можно продать в магазине." },
+  "mat_bone_1": { "id": "mat_bone_1", "name": "Кость Монстра", "type": "material", "rarity": "common", "price": 10, "description": "Обычная кость. Можно продать." },
+  "mat_fang_1": { "id": "mat_fang_1", "name": "Клык Зверя", "type": "material", "rarity": "uncommon", "price": 45, "description": "Острый клык. Можно продать." }
+
+};
