@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { Activity, Users, ScrollText, Power, PowerOff, Settings, UserCircle, Save, Brain, X, Zap, MessageSquareWarning, BookOpen } from 'lucide-react';
 import { ITEM_CATALOG } from '@/items';
 import { MONSTER_CATALOG } from '@/monsters';
+import { ARENA_NPCS, ARENA_ITEMS } from '@/arena';
 import { CLASSES, SUBCLASSES, SKILL_CATALOG } from '@/skills';
 
 interface Status {
@@ -36,7 +37,7 @@ export default function App() {
   const [selectedDbItem, setSelectedDbItem] = useState<any | null>(null);
   const [viewItemLevel, setViewItemLevel] = useState(0);
   const [modalMessage, setModalMessage] = useState('');
-  const [dbCategory, setDbCategory] = useState<'monsters' | 'weapon' | 'armor' | 'accessory' | 'consumable' | 'classes' | 'subclasses' | 'skills' | 'races'>('monsters');
+  const [dbCategory, setDbCategory] = useState<'monsters' | 'weapon' | 'armor' | 'accessory' | 'consumable' | 'classes' | 'subclasses' | 'skills' | 'races' | 'arena'>('monsters');
   const [dbSearch, setDbSearch] = useState('');
 
   const renderDatabaseContent = () => {
@@ -69,9 +70,10 @@ export default function App() {
         }
       }
       
-      const basePrices: any = { 'common': 50, 'uncommon': 200, 'rare': 500, 'epic': 2500, 'legendary': 10000 };
-      let basePriceTemp = basePrices[cloned.rarity] || 50;
+      const basePrices: any = { 'common': 1000, 'uncommon': 2500, 'rare': 6000, 'epic': 15000, 'legendary': 50000 };
+      let basePriceTemp = basePrices[cloned.rarity] || 1000;
       cloned.price = Math.floor(basePriceTemp + basePriceTemp * (level - 1) * 0.4);
+      cloned.price = Math.max(1000, cloned.price);
       return cloned;
     };
 
@@ -138,6 +140,34 @@ export default function App() {
             </div>
           ))}
           {monsters.length > 50 && <div className="col-span-full text-center text-neutral-500 mt-4">Показано 50 из {monsters.length}. Используйте поиск.</div>}
+        </div>
+      );
+    } else if (dbCategory === 'arena') {
+      const npcs = ARENA_NPCS.filter(m => m.name.toLowerCase().includes(dbSearch.toLowerCase()) || m.charClass.toLowerCase().includes(dbSearch.toLowerCase()));
+      const items = ARENA_ITEMS.filter(m => m.name.toLowerCase().includes(dbSearch.toLowerCase()));
+      return (
+        <div className="space-y-6">
+          <h3 className="text-white font-bold text-xl border-b border-neutral-800 pb-2">NPC Арены</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {npcs.map(m => (
+              <div key={m.id} className="bg-neutral-800 p-4 rounded-lg border border-rose-900/50 shadow-sm shadow-rose-900/10">
+                <h3 className="text-rose-400 font-bold">{m.name}</h3>
+                <p className="text-sm text-neutral-300 mt-1">Класс: {m.charClass}</p>
+                <p className="text-xs text-neutral-500 mt-2 italic">{m.description}</p>
+              </div>
+            ))}
+          </div>
+
+          <h3 className="text-white font-bold text-xl border-b border-neutral-800 pb-2 mt-8">Награды за Токены</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {items.map(m => (
+              <div key={m.id} className="bg-neutral-800 p-4 rounded-lg border border-amber-900/50 shadow-sm shadow-amber-900/10">
+                <h3 className="text-amber-400 font-bold">{m.name}</h3>
+                <p className="text-sm text-neutral-300 mt-1">Тип: {m.type}</p>
+                <p className="text-sm font-bold text-amber-500 mt-1">Стоимость: {m.cost} 🏅</p>
+              </div>
+            ))}
+          </div>
         </div>
       );
     } else if (dbCategory === 'races') {
@@ -808,6 +838,8 @@ export default function App() {
                 <button onClick={() => setDbCategory('subclasses')} className={`transition-colors ${dbCategory === 'subclasses' ? 'text-amber-400 font-bold' : 'text-amber-400/60 hover:text-amber-400'}`}>Подклассы</button>
                 <button onClick={() => setDbCategory('races')} className={`transition-colors ${dbCategory === 'races' ? 'text-amber-400 font-bold' : 'text-amber-400/60 hover:text-amber-400'}`}>Расы</button>
                 <button onClick={() => setDbCategory('skills')} className={`transition-colors ${dbCategory === 'skills' ? 'text-purple-400 font-bold' : 'text-purple-400/60 hover:text-purple-400'}`}>Скиллы</button>
+                <div className="w-px h-6 bg-neutral-800 mx-2 hidden md:block"></div>
+                <button onClick={() => setDbCategory('arena')} className={`transition-colors ${dbCategory === 'arena' ? 'text-rose-400 font-bold' : 'text-rose-400/60 hover:text-rose-400'}`}>Арена</button>
               </div>
 
               <div className="mb-6 flex flex-col md:flex-row gap-4 items-center">

@@ -99,22 +99,24 @@ export function addXp(rpg: CharacterRPGData, amount: number): boolean {
     rpg.level += 1;
     
     // Random stat distribution
-    const points = 5;
+    const points = 6;
     for (let i = 0; i < points; i++) {
-      const roll = Math.random();
-      if (roll < 0.2) {
-        rpg.baseStats.maxHp += 5;
-      } else if (roll < 0.35) {
-        rpg.baseStats.maxMp = (rpg.baseStats.maxMp || 50) + 5;
-      } else if (roll < 0.5) {
+      const statsKeys = ['maxHp', 'maxMp', 'attack', 'defense', 'magicAttack', 'magicDefense', 'agility'];
+      const statKey = statsKeys[Math.floor(Math.random() * statsKeys.length)];
+      
+      if (statKey === 'maxHp') {
+        rpg.baseStats.maxHp += 10;
+      } else if (statKey === 'maxMp') {
+        rpg.baseStats.maxMp = (rpg.baseStats.maxMp || 50) + 10;
+      } else if (statKey === 'attack') {
         rpg.baseStats.attack += 1;
-      } else if (roll < 0.65) {
+      } else if (statKey === 'defense') {
         rpg.baseStats.defense += 1;
-      } else if (roll < 0.8) {
+      } else if (statKey === 'magicAttack') {
         rpg.baseStats.magicAttack = (rpg.baseStats.magicAttack || 5) + 1;
-      } else if (roll < 0.9) {
+      } else if (statKey === 'magicDefense') {
         rpg.baseStats.magicDefense = (rpg.baseStats.magicDefense || 5) + 1;
-      } else {
+      } else if (statKey === 'agility') {
         rpg.baseStats.agility += 1;
       }
     }

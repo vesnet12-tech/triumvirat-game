@@ -10,11 +10,12 @@ import fs from 'fs';
 import config from './firebase-applet-config.json' assert { type: 'json' };
 import { getItemByName, ITEM_CATALOG, getItem, parseItemId, buildItemId } from './items.js';
 import { CharacterRPGData, DEFAULT_RPG_DATA, calculateTotalStats, equipItem, unequipItem, useItem, dropItem, addXp } from './rpg.js';
-import { SKILL_CATALOG, CLASS_STARTING_SKILLS, CLASSES } from './skills.js';
+import { SKILL_CATALOG, CLASS_STARTING_SKILLS, CLASSES, CLASS_LEVEL_SKILLS, SUBCLASSES } from './skills.js';
 import { generateEnemy, processCombatTurn } from './combat.js';
 import { MONSTER_CATALOG } from './monsters.js';
 import { WORLD_LOCATIONS } from './locations.js';
 import { RACES_LIST, RACE_CATALOG, SECRET_RACE_ID, RACECREATOR_ID } from './races.js';
+import { ARENA_NPCS, ARENA_ITEMS } from './arena.js';
 
 const firebaseApp = initializeApp(config);
 const db = getFirestore(firebaseApp, config.firestoreDatabaseId);
@@ -438,9 +439,115 @@ async function initBot() {
     
     console.log(`[DEBUG] Current Sender ID: ${senderId}`);
 
-    // Check if user is travelling
+    // Check active character
     const charsSnapshot = await getDocs(query(collection(db, 'characters'), where('ownerId', '==', senderId)));
     let activeChar = charsSnapshot.docs.map(d => ({ id: d.id, ...d.data() as any })).find((c: any) => !c.deleted);
+    const userDoc = await getDoc(doc(db, 'users', senderId.toString()));
+    if (userDoc.exists() && userDoc.data().activeCharId) {
+       const userChar = charsSnapshot.docs.map(d => ({ id: d.id, ...d.data() as any })).find((c: any) => c.id === userDoc.data().activeCharId && !c.deleted);
+       if (userChar) activeChar = userChar;
+    }
+
+    if (activeChar && activeChar.rpg && activeChar.rpg.level) {
+       const expectedChoices = Math.floor(activeChar.rpg.level / 2);
+       const choicesMade = activeChar.rpg.skillChoicesMade || 0;
+       
+       if (expectedChoices > choicesMade) {
+          const pAction = context.messagePayload?.action;
+          
+          if (pAction === 'take_level_skill') {
+             const chosenSkillId = context.messagePayload.skillId;
+             if (!activeChar.rpg.unlockedSkills) activeChar.rpg.unlockedSkills = [];
+             if (!activeChar.rpg.unlockedSkills.includes(chosenSkillId)) {
+                activeChar.rpg.unlockedSkills.push(chosenSkillId);
+             }
+             activeChar.rpg.skillChoicesMade = choicesMade + 1;
+             activeChar.rpg.pendingSkillChoiceOptions = null;
+             await setDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
+             
+             await context.send(`✨ Вы успешно изучили новый навык! Экипировать навыки можно в меню "Навыки".`);
+             userLocks.delete(senderId);
+             return;
+          } else if (pAction === 'view_level_skill') {
+             const skillId = context.messagePayload.skillId;
+             const skill = SKILL_CATALOG[skillId];
+             if (skill) {
+                 const kb = Keyboard.builder()
+                   .textButton({ label: '✅ Взять навык', payload: { action: 'take_level_skill', skillId }, color: Keyboard.POSITIVE_COLOR })
+                   .row()
+                   .textButton({ label: '🔙 Вернуться к выбору', payload: { action: 'back_to_level_skill' }, color: Keyboard.SECONDARY_COLOR });
+                   
+                 let msg = `📖 Навык: ${skill.name}\n\n📝 Описание: ${skill.description}\n💪 Эффект: Пассивный\n`;
+                 if (!skill.isPassive) {
+                    msg = `📖 Навык: ${skill.name}\n\n📝 Описание: ${skill.description}\n💥 Урон/Сила: ${skill.power || 0}\n💧 Мана: ${skill.mpCost || 0}\n⏳ Перезарядка: ${skill.cooldown || 2} ход.\n`;
+                 }
+                 await context.send({ message: msg, keyboard: kb });
+             } else {
+                 await context.send('Ошибка: Навык не найден.');
+             }
+             userLocks.delete(senderId);
+             return;
+          } else if (pAction === 'back_to_level_skill') {
+             // Fall through
+          } else if (context.messagePayload || text) {
+             // Show warning
+             await context.send('🌟 Сначала вам нужно выбрать классовый навык за повышение уровня!');
+          }
+          
+          // Show choices
+          if (!activeChar.rpg.pendingSkillChoiceOptions || activeChar.rpg.pendingSkillChoiceOptions.length === 0) {
+              const allClassSkills = CLASS_LEVEL_SKILLS[activeChar.charClass] || [];
+              const unowned = allClassSkills.filter(sid => !(activeChar.rpg.unlockedSkills || []).includes(sid));
+              const shuffled = [...unowned].sort(() => 0.5 - Math.random());
+              activeChar.rpg.pendingSkillChoiceOptions = shuffled.slice(0, 3);
+              await setDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
+          }
+          
+          const opts = activeChar.rpg.pendingSkillChoiceOptions;
+          if (opts && opts.length > 0) {
+             let kb = Keyboard.builder();
+             opts.forEach(sid => {
+                 const s = SKILL_CATALOG[sid];
+                 if (s) {
+                     kb.textButton({ label: s.name.substring(0, 40), payload: { action: 'view_level_skill', skillId: sid }, color: s.isPassive ? Keyboard.SECONDARY_COLOR : Keyboard.PRIMARY_COLOR }).row();
+                 }
+             });
+             await context.send({ message: `🌟 Вы повышены в уровне! Доступен новый навык. Нажмите на название, чтобы посмотреть детали:`, keyboard: kb });
+             userLocks.delete(senderId);
+             return;
+          } else {
+             // Out of skills
+             activeChar.rpg.skillChoicesMade = choicesMade + 1;
+             await setDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
+          }
+       }
+    }
+
+    if (activeChar && activeChar.rpg && activeChar.rpg.level >= 20 && !activeChar.subclass && activeChar.charClass) {
+       const subs = SUBCLASSES[activeChar.charClass];
+       if (subs && subs.length > 0) {
+          const pAction = context.messagePayload?.action;
+          if (pAction === 'choose_subclass') {
+             activeChar.subclass = context.messagePayload.subclass;
+             await setDoc(doc(db, 'characters', activeChar.id), { subclass: activeChar.subclass }, { merge: true });
+             await context.send(`🎉 Вы успешно получили власть подкласса: ${activeChar.subclass}! Новые возможности скоро откроются!`);
+             userLocks.delete(senderId);
+             return;
+          }
+          
+          if (context.messagePayload || text) {
+             await context.send('🌟 Сначала вам нужно выбрать подкласс!');
+          }
+          
+          const kb = Keyboard.builder();
+          subs.forEach(s => {
+             kb.textButton({ label: s, payload: { action: 'choose_subclass', subclass: s }, color: Keyboard.PRIMARY_COLOR }).row();
+          });
+          await context.send({ message: `🌟 Вы достигли 20 уровня! Пришло время выбрать узкую специализацию (подкласс) для вашего класса (${activeChar.charClass}):`, keyboard: kb });
+          userLocks.delete(senderId);
+          return;
+       }
+    }
 
     // Admin Command
     if (text === 'воскресить_каина') {
@@ -2818,7 +2925,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           
           addLog(`[СИСТЕМА]: ${char.name} нашел монстра ${enemy.name}`);
           
-          const result = processCombatTurn(char.rpg, 'attack');
+          const result = processCombatTurn(char.rpg, 'attack', undefined, char.charClass);
           
           if (result.won) {
             char.gold = (char.gold || 0) + result.gold;
@@ -3796,13 +3903,123 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             await context.send('❌ Арена находится только в городе.');
             return;
           }
+          const tokens = char.rpg?.arenaTokens || 0;
           const keyboard = Keyboard.builder()
             .textButton({ label: '⚔️ Сразиться с НПС', payload: { command: 'arena_npc' }, color: Keyboard.PRIMARY_COLOR })
             .row()
-            .textButton({ label: '🔙 В меню', payload: { command: 'menu' }, color: Keyboard.SECONDARY_COLOR })
+            .textButton({ label: '🏆 Рейтинг', payload: { command: 'arena_rating' }, color: Keyboard.PRIMARY_COLOR })
+            .textButton({ label: `🛍️ Токены (${tokens})`, payload: { command: 'arena_shop' }, color: Keyboard.POSITIVE_COLOR })
+            .row()
+            .textButton({ label: '🔙 В город', payload: { command: 'city_menu' }, color: Keyboard.SECONDARY_COLOR })
             ;
-          await context.send({ message: `🏟️ Добро пожаловать на Арену! Здесь вы можете сразиться за славу и награды.`, keyboard });
+          await context.send({ message: `🏟️ Добро пожаловать на Арену!\nЗдесь вы можете сразиться за славу и награды.\n\n🏅 Ваши токены арены: ${tokens}`, keyboard });
           return;
+        }
+
+        if (payloadCommand === 'arena_rating') {
+          // Fetch real players sorted by level, then mix in some ARENA_NPCS at random levels
+          const allDocs = await getDocs(collection(db, 'characters'));
+          const players: any[] = [];
+          allDocs.forEach(d => {
+             const data = d.data();
+             if (data.rpg) players.push({ name: data.name, level: data.rpg.level || 1, type: 'player' });
+          });
+          
+          ARENA_NPCS.forEach(n => {
+             const fakeLevel = Math.floor(Math.random() * 50) + 1; // Fake levels for npcs
+             players.push({ name: `${n.name} (NPC)`, level: fakeLevel, type: 'npc' });
+          });
+          
+          players.sort((a, b) => b.level - a.level);
+          const top10 = players.slice(0, 10);
+          let msg = `🏆 Топ-10 бойцов Арены:\n\n`;
+          top10.forEach((p, index) => {
+             msg += `${index + 1}. ${p.name} — ${p.level} Ур.\n`;
+          });
+          
+          const keyboard = Keyboard.builder()
+            .textButton({ label: '🔙 Арена', payload: { command: 'arena' }, color: Keyboard.SECONDARY_COLOR });
+            
+          await context.send({ message: msg, keyboard });
+          return;
+        }
+
+        if (payloadCommand === 'arena_shop' || payloadCommand?.startsWith('arena_buy_')) {
+           const tokens = char.rpg?.arenaTokens || 0;
+           
+           if (payloadCommand.startsWith('arena_buy_')) {
+              const buyId = payloadCommand.replace('arena_buy_', '');
+              if (buyId === 'gold') {
+                 if (tokens >= 5) {
+                    char.rpg.arenaTokens -= 5;
+                    char.gold = (char.gold || 0) + 1000;
+                    await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                    await context.send({ message: `✅ Вы обменяли 5 токенов на 1000 💰!` });
+                 } else {
+                    await context.send({ message: `❌ Недостаточно токенов (нужно 5).` });
+                 }
+              } else {
+                 const tItem = ARENA_ITEMS.find(i => i.id === buyId);
+                 if (tItem) {
+                    if (tokens >= tItem.cost) {
+                       char.rpg.arenaTokens -= tItem.cost;
+                       
+                       // Item logic: gives stats scaled to player level
+                       const itemLvl = char.rpg.level || 1;
+                       const budget = 5 + itemLvl * (tItem.type === 'accessory' ? 1.5 : 3.5) * tItem.statsMult;
+                       const giveItemBase = {
+                          name: tItem.name + ` (${itemLvl} ур)`,
+                          id: `${tItem.id}_${Date.now()}`,
+                          type: tItem.type,
+                          rarity: 'epic',
+                          level: itemLvl,
+                          price: 1000,
+                          stats: {} as any
+                       };
+                       
+                       if (tItem.type === 'weapon') {
+                          giveItemBase.stats.attack = Math.floor(budget);
+                       } else if (tItem.type === 'armor') {
+                          giveItemBase.stats.defense = Math.floor(budget);
+                       } else if (tItem.type === 'accessory') {
+                          giveItemBase.stats.maxHp = Math.floor(budget * 5);
+                          giveItemBase.stats.critRate = 5;
+                       }
+                       
+                       if (!char.rpg.inventory) char.rpg.inventory = [];
+                       char.rpg.inventory.push({ itemId: JSON.stringify(giveItemBase), amount: 1, inline: true });
+                       
+                       await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                       await context.send({ message: `✅ Вы купили ${tItem.name} за ${tItem.cost} токенов!` });
+                    } else {
+                       await context.send({ message: `❌ Недостаточно токенов (нужно ${tItem.cost}).` });
+                    }
+                 }
+              }
+              // re-read tokens after buy
+           }
+
+           const currentTokens = char.rpg?.arenaTokens || 0;
+           let msg = `🛍️ Обмен токенов Арены\nВаши токены: ${currentTokens} 🏅\n\n`;
+           msg += `Здесь вы можете обменять токены на уникальную экипировку, которая получает уровень равный вашему текущему уровню!\n\n`;
+           
+           const kb = Keyboard.builder();
+           
+           ARENA_ITEMS.forEach((ai, idx) => {
+              msg += `${idx + 1}. ${ai.name} — ${ai.cost} 🏅\n`;
+              kb.textButton({ label: `Купить ${idx + 1}`, payload: { command: `arena_buy_${ai.id}` }, color: Keyboard.PRIMARY_COLOR });
+              if ((idx + 1) % 2 === 0) kb.row();
+           });
+           
+           if (ARENA_ITEMS.length % 2 !== 0) kb.row();
+           
+           msg += `\nБонус: Обмен на золото: 5 🏅 = 1000 💰\n`;
+           kb.textButton({ label: `💰 Обменять (5 🏅)`, payload: { command: 'arena_buy_gold' }, color: Keyboard.POSITIVE_COLOR }).row();
+           
+           kb.textButton({ label: '🔙 Арена', payload: { command: 'arena' }, color: Keyboard.SECONDARY_COLOR });
+           
+           await context.send({ message: msg, keyboard: kb });
+           return;
         }
 
         if (payloadCommand === 'arena_npc') {
@@ -3819,26 +4036,30 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           }
 
           if (!char.rpg.combat) {
-            const arenaLevel = char.rpg.level + 2;
-            const npcNames = ['Опытный Гладиатор', 'Чемпион Арены', 'Свирепый Наёмник', 'Элитный Боец Авангарда'];
-            const npcName = npcNames[Math.floor(Math.random() * npcNames.length)];
-            const hp = 200 + (arenaLevel * 35);
-            const atk = 15 + (arenaLevel * 4);
-            const def = 10 + (arenaLevel * 3);
-            const agi = 12 + (arenaLevel * 2);
+            const levelDiff = Math.floor(Math.random() * 4); // 0, 1, 2, or 3
+            const arenaLevel = char.rpg.level + levelDiff;
+            const npc = ARENA_NPCS[Math.floor(Math.random() * ARENA_NPCS.length)];
+            
+            const hp = 150 + (arenaLevel * 40);
+            const atk = 12 + (arenaLevel * 5);
+            const def = 8 + (arenaLevel * 4);
+            const agi = 10 + (arenaLevel * 3);
+            
+            const isMagic = ['Пиромант', 'Некромант', 'Жрец'].includes(npc.charClass);
             
             const arenaEnemy = {
-              id: 'arena_gladiator',
-              name: `[АРЕНА] ${npcName} (${arenaLevel} Ур)`,
+              id: npc.id,
+              name: `[АРЕНА] ${npc.name} (${npc.charClass}) - ${arenaLevel} Ур`,
               hp: hp,
               maxHp: hp,
-              attack: atk,
+              attack: isMagic ? Math.floor(atk / 2) : atk,
               defense: def,
-              magicAttack: Math.floor(atk / 2),
+              magicAttack: isMagic ? atk : Math.floor(atk / 2),
               magicDefense: def,
               agility: agi,
               xpReward: arenaLevel * 30,
-              goldReward: arenaLevel * 20,
+              goldReward: arenaLevel * 30 + 100, // Norm money
+              arenaTokens: 1 + Math.floor(arenaLevel / 5) + (levelDiff >= 2 ? 1 : 0),
               loot: [],
               skills: ['warrior_skill_1', 'warrior_skill_2']
             };
@@ -3928,12 +4149,18 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           const action = context.messagePayload.combatAction;
           const skillId = context.messagePayload.skillId;
           
-          const result = processCombatTurn(char.rpg, action, skillId);
+          const result = processCombatTurn(char.rpg, action, skillId, char.charClass);
           
           if (result.won) {
             char.gold = (char.gold || 0) + result.gold;
+            if ((result as any).arenaTokens) {
+               char.rpg.arenaTokens = (char.rpg.arenaTokens || 0) + (result as any).arenaTokens;
+            }
             const leveledUp = addXp(char.rpg, result.xp);
             let msg = `${result.log}\n💰 Получено ${result.gold} золота и ${result.xp} XP!`;
+            if ((result as any).arenaTokens) {
+               msg += `\n🏅 Получено токенов арены: ${(result as any).arenaTokens}`;
+            }
             
             chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок ${char.name} победил в бою.` }] });
             
@@ -4041,15 +4268,17 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
       userStates.set(senderId, { step: 'chatting', data: { ownerId: senderId } });
       creationChats.set(senderId, []);
       
-      const systemInstruction = `Ты — опытный и лаконичный Данжен Мастер. Твоя цель — помочь игроку создать персонажа.
+      const systemInstruction = `Ты — опытный и лаконичный Данжен Мастер. Твоя цель — помочь игроку создать персонажа. ВАЖНО: Игрок должен создать персонажа в диалоге с тобой.
 ОТВЕЧАЙ КРАТКО (1-2 предложения). Не пиши длинных вступлений.
-Выясни: Имя, Расу, Класс и Предысторию. (Подклассы недоступны при создании).
-В мире доступно более 100 классических и униканых фэнтези рас (люди, эльфы, гномы, гоблины, орки, зверолюди, элементали, нежить, демоны и др.). Игрок может выбрать практически любую расу. Каждая раса имеет свои уникальные стартовые баффы (высчитываются системой скрыто).
-Доступные классы: ${CLASSES.join(', ')}. Если игрок спрашивает о классах, кратко перечисли их.
+ВЫ ВЕДЕТЕ ДИАЛОГ! Спрашивай игрока по одному пункту: Имя, Расу, Класс и Предысторию. Строго давай на выбор только ДОСТУПНЫЕ классы и расы из базы.
+Доступные классы: ${CLASSES.join(', ')}. (Подклассы недоступны при создании).
+Доступные расы: ${RACES_LIST.map(r => r.name).join(', ')}.
+ПРАВИЛО: Игрок может выбрать ТОЛЬКО класс из списка доступных классов и ТОЛЬКО расу из списка доступных рас. Если игрок выбирает что-то другое, вежливо скажи, что это недоступно и предложи варианты.
 Скажи игроку, что его начальные характеристики будут сгенерированы случайным образом, но его Раса даст ему скрытые баффы.
 Если игрок прислал фото, похвали арт, определи возраст, пол и стартовый инвентарь.
 ПРЕСЕКАЙ ЧИТЕРСТВО! Никаких легендарок или 100 уровней.
-Как только все определено, добавь в конец сообщения блок:
+ОБЯЗАТЕЛЬНОЕ УСЛОВИЕ: НИКОГДА не выдавай блок [ГОТОВО] сам, пока игрок явно не скажет 'Готово', 'Завершить' или вы не пройдете все пункты выбора (Имя, Раса, Класс, Предыстория) и игрок не подтвердит результат.
+Как только игрок скажет, что готов завершить создание, и все пункты выбраны (из разрешенных), добавь в конец сообщения блок:
 [ГОТОВО]
 {
   "name": "Имя", 
@@ -4080,15 +4309,17 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
       if (state.step === 'chatting') {
         try {
           const history = creationChats.get(senderId) || [];
-          const systemInstruction = `Ты — опытный и лаконичный Данжен Мастер. Твоя цель — помочь игроку создать персонажа.
+          const systemInstruction = `Ты — опытный и лаконичный Данжен Мастер. Твоя цель — помочь игроку создать персонажа. ВАЖНО: Игрок должен создать персонажа в диалоге с тобой.
 ОТВЕЧАЙ КРАТКО (1-2 предложения). Не пиши длинных вступлений.
-Выясни: Имя, Расу, Класс и Предысторию. (Подклассы недоступны при создании).
-В мире доступно более 100 классических и униканых фэнтези рас (люди, эльфы, гномы, гоблины, орки, зверолюди, элементали, нежить, демоны и др.). Игрок может выбрать практически любую расу. Каждая раса имеет свои уникальные стартовые баффы (высчитываются системой скрыто).
-Доступные классы: ${CLASSES.join(', ')}. Если игрок спрашивает о классах, кратко перечисли их.
+ВЫ ВЕДЕТЕ ДИАЛОГ! Спрашивай игрока по одному пункту: Имя, Расу, Класс и Предысторию. Строго давай на выбор только ДОСТУПНЫЕ классы и расы из базы.
+Доступные классы: ${CLASSES.join(', ')}. (Подклассы недоступны при создании).
+Доступные расы: ${RACES_LIST.map(r => r.name).join(', ')}.
+ПРАВИЛО: Игрок может выбрать ТОЛЬКО класс из списка доступных классов и ТОЛЬКО расу из списка доступных рас. Если игрок выбирает что-то другое, вежливо скажи, что это недоступно и предложи варианты.
 Скажи игроку, что его начальные характеристики будут сгенерированы случайным образом, но его Раса даст ему скрытые баффы.
 Если игрок прислал фото, похвали арт, определи возраст, пол и стартовый инвентарь.
 ПРЕСЕКАЙ ЧИТЕРСТВО! Никаких легендарок или 100 уровней.
-Как только все определено, добавь в конец сообщения блок:
+ОБЯЗАТЕЛЬНОЕ УСЛОВИЕ: НИКОГДА не выдавай блок [ГОТОВО] сам, пока игрок явно не скажет 'Готово', 'Завершить' или вы не пройдете все пункты выбора (Имя, Раса, Класс, Предыстория) и игрок не подтвердит результат.
+Как только игрок скажет, что готов завершить создание, и все пункты выбраны (из разрешенных), добавь в конец сообщения блок:
 [ГОТОВО]
 {
   "name": "Имя", 
@@ -4193,17 +4424,22 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               
               // If the class is not in CLASS_STARTING_SKILLS, give some default skills
               if (startingSkills.length === 0) {
-                startingSkills.push('warrior_skill_1', 'warrior_skill_2', 'warrior_skill_16');
+                startingSkills.push('w_dmg_1', 'w_pass_1', 'w_pass_2');
               }
+              
+              let addedActive = 0;
+              let addedPassive = 0;
               
               startingSkills.forEach(skillId => {
                 const skill = SKILL_CATALOG[skillId];
                 if (skill) {
                   unlockedSkills.push(skillId);
-                  if (skill.isPassive && equippedPassive.length < 6) {
+                  if (skill.isPassive && addedPassive < 1) {
                     equippedPassive.push(skillId);
-                  } else if (!skill.isPassive && equippedActive.length < 6) {
+                    addedPassive++;
+                  } else if (!skill.isPassive && addedActive < 2) {
                     equippedActive.push(skillId);
+                    addedActive++;
                   }
                 }
               });

@@ -146,7 +146,9 @@ function processStatuses(statuses: ActiveStatus[], hpRef: { hp: number; maxHp: n
   return canAct;
 }
 
-export function processCombatTurn(rpg: CharacterRPGData, action: 'attack' | 'defend' | 'flee' | 'skill', skillId?: string) {
+export const MAGIC_CLASSES = ["Маг", "Жрец", "Чернокнижник", "Друид", "Иллюзионист", "Маг Крови", "Некромант", "Алхимик", "Шаман", "Жрица", "Волшебник", "Пиромант", "Криомант", "Арканист"];
+
+export function processCombatTurn(rpg: CharacterRPGData, action: 'attack' | 'defend' | 'flee' | 'skill', skillId?: string, charClass?: string) {
   if (!rpg.combat) return { log: 'Нет активного боя.', ended: true, won: false, fled: false, xp: 0, gold: 0, lootDrops: [] };
   
   // Initialize extended state if missing
@@ -194,7 +196,7 @@ export function processCombatTurn(rpg: CharacterRPGData, action: 'attack' | 'def
       combat.isDefending = true;
       log += `🛡️ Вы встали в глухую защиту.\n`;
     } else if (action === 'attack') {
-      performAttack(stats, enemy, combat, { get msg() { return log; }, set msg(v) { log = v; } }, "Вы", enemy.name, true, rpg);
+      performAttack(stats, enemy, combat, { get msg() { return log; }, set msg(v) { log = v; } }, "Вы", enemy.name, true, rpg, charClass);
     } else if (action === 'skill' && skillId) {
       // Validate CD
       if (combat.playerCooldowns[skillId] > 0) {
@@ -290,6 +292,7 @@ function handleVictory(enemy: any, log: string, rpg: any) {
   log += `\n💀 ${enemy.name} повержен!\n`;
   const xp = enemy.xpReward || enemy.level * 10;
   const gold = enemy.goldReward || enemy.level * 5;
+  const arenaTokens = enemy.arenaTokens || 0;
   const lootDrops: string[] = [];
   if (enemy.loot) {
     enemy.loot.forEach((l: any) => { if (Math.random() <= l.chance) lootDrops.push(l.itemId); });
@@ -305,7 +308,7 @@ function handleVictory(enemy: any, log: string, rpg: any) {
     }
   }
 
-  return { log, ended: true, won: true, fled: false, xp, gold, lootDrops, combatType };
+  return { log, ended: true, won: true, fled: false, xp, gold, arenaTokens, lootDrops, combatType };
 }
 
 function handleDeath(log: string, rpg: any) {
@@ -366,7 +369,7 @@ function dealDamageToTarget(rawDmg: number, defStat: number, isEnemyAttacking: b
   return dmg;
 }
 
-function performAttack(attacker: any, defender: any, combat: any, logRef: any, attackerName: string, defenderName: string, isPlayer: boolean, rpg: any) {
+function performAttack(attacker: any, defender: any, combat: any, logRef: any, attackerName: string, defenderName: string, isPlayer: boolean, rpg: any, charClass?: string) {
   const hitRoll = Math.floor(Math.random() * 100) + 1;
   if (hitRoll === 100) { // 1% critical miss
     logRef.msg += `💨 ${attackerName} совершает критический промах!\n`;
@@ -381,10 +384,12 @@ function performAttack(attacker: any, defender: any, combat: any, logRef: any, a
   hitChance = Math.max(10, Math.min(100, hitChance));
   
   if (hitRoll <= hitChance) {
-    let def = defender.defense;
+    const isMagicClass = isPlayer && charClass && MAGIC_CLASSES.includes(charClass);
+    let def = isMagicClass ? (defender.magicDefense || defender.defense) : defender.defense;
     if (!isPlayer && combat.isDefending) def *= 2; 
     
-    let rawDmg = attacker.attack + Math.floor(Math.random() * 4) + 1;
+    let baseAtk = isMagicClass ? (attacker.magicAttack || attacker.attack) : attacker.attack;
+    let rawDmg = baseAtk + Math.floor(Math.random() * 4) + 1;
     if (hitRoll <= (attacker.critRate || 5)) {
       const critMult = attacker.critDamage ? attacker.critDamage / 100 : 1.5;
       rawDmg *= critMult;

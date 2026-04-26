@@ -62,7 +62,7 @@ export const ITEM_CATALOG: Record<string, Item> = {
     "name": "Грубый посох",
     "rarity": "common",
     "stats": {
-      "magicAttack": 5,
+      "magicAttack": 15,
       "maxMp": 20
     },
     "price": 1750,
@@ -96,7 +96,7 @@ export const ITEM_CATALOG: Record<string, Item> = {
     "name": "Крепкий посох ученика",
     "rarity": "uncommon",
     "stats": {
-      "magicAttack": 35,
+      "magicAttack": 50,
       "maxMp": 85
     },
     "price": 5860,
@@ -7282,11 +7282,14 @@ export function getItem(itemId: string): Item | undefined {
      const rarityMult: Record<string, number> = { 'common': 1, 'uncommon': 1.4, 'rare': 2.0, 'epic': 3.5, 'legendary': 6 };
      const mult = rarityMult[cloned.rarity] || 1;
      
+     const isMagicWeapon = cloned.type === 'weapon' && cloned.stats.magicAttack && !cloned.stats.attack;
+
      // Base budget based on item level + item rarity. 
-     // This way a level 1 legendary weapon is strong, but appropriate for level 1.
      // Accessories have a slightly lower multiplier to prevent excessive HP stacking.
      const budgetMult = cloned.type === 'accessory' ? 3 : 6;
-     const baseBudget = cloned.type === 'accessory' ? 2 : 5;
+     
+     // Magic weapons get higher base budget to compensate for splitting budget with MP
+     const baseBudget = cloned.type === 'accessory' ? 2 : (isMagicWeapon ? 15 : 5);
      
      const budget = baseBudget + level * budgetMult * mult;
      
@@ -7301,7 +7304,19 @@ export function getItem(itemId: string): Item | undefined {
          for (let k in cloned.stats) {
              if (!PERCENTAGE_STATS.includes(k) && typeof cloned.stats[k as keyof ItemStats] === 'number') {
                  let proportion = (cloned.stats[k as keyof ItemStats] as number) / sumLinear;
-                 let newVal = Math.floor(budget * proportion);
+                 
+                 let newVal = 0;
+                 if (cloned.rarity === 'common') {
+                     let baseVal = (item.stats as any)[k] as number;
+                     newVal = baseVal + (level - 1) * 2 * proportion;
+                 } else if (cloned.rarity === 'uncommon') {
+                     let baseVal = (item.stats as any)[k] as number;
+                     newVal = baseVal + (level - 1) * 3 * proportion;
+                 } else {
+                     newVal = budget * proportion;
+                 }
+                 
+                 newVal = Math.floor(newVal);
                  if (newVal < 1) newVal = 1;
                  (cloned.stats as any)[k] = newVal;
              }
@@ -7313,14 +7328,16 @@ export function getItem(itemId: string): Item | undefined {
      const rarityMult: Record<string, number> = { 'common': 1, 'uncommon': 1.4, 'rare': 2.0, 'epic': 3.5, 'legendary': 6 };
      const mult = rarityMult[cloned.rarity] || 1;
      
-     const basePrices: Record<string, number> = { 'common': 50, 'uncommon': 200, 'rare': 500, 'epic': 2500, 'legendary': 10000 };
-     let basePriceTemp = basePrices[cloned.rarity] || 50;
+     const basePrices: Record<string, number> = { 'common': 1000, 'uncommon': 2500, 'rare': 6000, 'epic': 15000, 'legendary': 50000 };
+     let basePriceTemp = basePrices[cloned.rarity] || 1000;
      cloned.price = Math.floor(basePriceTemp + basePriceTemp * (level - 1) * 0.4);
   } else if (cloned.type === 'consumable') {
-     cloned.price = cloned.rarity === 'rare' ? 100 : (cloned.rarity === 'uncommon' ? 50 : 20);
-  } else if (cloned.type === 'material' || cloned.type === 'junk') {
-     cloned.price = 5;
+     cloned.price = cloned.rarity === 'rare' ? 2500 : (cloned.rarity === 'uncommon' ? 1500 : 1000);
+  } else if (cloned.type === 'material' || (cloned.type as any) === 'junk') {
+     cloned.price = 1000;
   }
+  
+  cloned.price = Math.max(1000, cloned.price);
 
   return cloned;
 }

@@ -11,7 +11,7 @@ export interface Monster {
   agility: number;
   xpReward?: number;
   goldReward?: number;
-  rarity: 'common' | 'uncommon' | 'rare' | 'elite' | 'boss' | 'mythic' | 'legendary';
+  rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'elite' | 'boss' | 'mythic' | 'legendary';
   loot: { itemId: string; chance: number }[];
   skills?: any[];
 }
