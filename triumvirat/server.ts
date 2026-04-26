@@ -5,7 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import cors from 'cors';
 import path from 'path';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, query, where, deleteDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, query, where, deleteDoc, writeBatch } from 'firebase/firestore';
 import fs from 'fs';
 import config from './firebase-applet-config.json' assert { type: 'json' };
 import { getItemByName, ITEM_CATALOG, getItem, parseItemId, buildItemId } from './items.js';
@@ -1877,7 +1877,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 const maxPots = 3;
                 char.rpg.inventory = char.rpg.inventory || [];
                 const potCount = Math.floor(Math.random() * (maxPots - minPots + 1)) + minPots;
-                const potId = 'hp_potion_1';
+                const potId = 'cons_1';
                 const ex = char.rpg.inventory.find((i:any) => i.itemId === potId);
                 if (ex) ex.amount += potCount;
                 else char.rpg.inventory.push({ itemId: potId, amount: potCount });
@@ -3380,7 +3380,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           let msg = `📊 Характеристики [${char.name}] (Стр. ${page}/2)\n`;
           
           if (page === 1) {
-            msg += `Ур: ${char.rpg.level || char.level || 1} | Опыт: ${char.rpg.xp}/${char.rpg.level * 2000}\n` +
+            msg += `Ур: ${char.rpg.level || char.level || 1} | Опыт: ${char.rpg.xp}/${char.rpg.level * 1000}\n` +
               `💰 Золото: ${char.gold || 0}\n\n` +
               `[ Базовые ]\n` +
               `❤️ ХП: ${char.rpg.baseStats.hp}/${totalStats.maxHp}\n` +
@@ -4745,7 +4745,21 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           while(guildRumors.length > 0 && now - guildRumors[0].timestamp > 3600000) {
             guildRumors.shift();
           }
-          const rumorsText = guildRumors.length > 0 ? `\nСЛУХИ В ГИЛЬДИИ (NPC обсуждают это): ${guildRumors.map(r => `${r.playerName} взял задание "${r.questName}"`).join('; ')}` : '';
+          const rumorsText = guildRumors.length > 0 ? `\nСЛУХИ В ГИЛЬДИИ (Игроки обсуждают это): ${guildRumors.map(r => `${r.playerName} взял задание "${r.questName}"`).join('; ')}` : '';
+          
+          let npcsText = '';
+          try {
+             const npcsSnap = await getDocs(query(collection(db, 'npcs'), where('locationId', '==', activeChar?.location || 'loc_starter')));
+             const localNpcs: any[] = [];
+             npcsSnap.forEach(docSnap => localNpcs.push({...docSnap.data(), _id: docSnap.id}));
+             if (localNpcs.length > 0) {
+                 npcsText = `\nСЕЙЧАС В ЛОКАЦИИ НАХОДЯТСЯ СЛЕДУЮЩИЕ ИМЕННЫЕ NPC, С КОТОРЫМИ МОЖНО ВЗАИМОДЕЙСТВОВАТЬ:\n`;
+                 localNpcs.forEach(n => {
+                     npcsText += `- ${n.name} (ID: ${n._id}, Ур ${n.level}). Роль: ${n.prompt}. Приветствие: "${n.greeting}". Отношение: ${n.hostile ? 'Враждебен (нападет если спровоцировать)' : 'Нейтрален'}.\n`;
+                 });
+                 npcsText += `\nВНИМАНИЕ: Если игрок решает напасть на NPC (или грубит так, что NPC решает напасть первым), добавь тег [START_NPC_COMBAT] ID_NPC [/START_NPC_COMBAT] в конце ответа (например [START_NPC_COMBAT] ${localNpcs[0]?._id} [/START_NPC_COMBAT]). Сервер перехватит этот тег и запустит системный бой. Не описывай сам бой.\n`;
+             }
+          } catch(e) { console.error('Error fetching npcs', e); }
 
           // Generate Dynamic Quest Board for current player level
           let validLocations = WORLD_LOCATIONS.filter(l => l.levelMin <= (activeChar?.rpg?.level || 1) + 10);
@@ -4810,6 +4824,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
 Игроки имеют ранги гильдии (D, C, B, A, S, SS, SSS, SSSR+). Текущий ранг игрока: ${activeChar?.rpg?.guildRank || 'D'}.
 Когда игрок приносит трофей по квесту и сдает его, выдай "addQuestComplete" в [UPDATE_CHAR] и забери трофей из инвентаря.
 ${rumorsText}
+${npcsText}
 
 КРАЖИ И ТЮРЬМА:
 Если игрок пытается украсть и проваливается, 1-й раз сделай предупреждение. 2-й раз стража требует штраф (например, 50 золота). Если игрок отказывается платить или нет денег, ТЫ ОБЯЗАН отправить его в тюрьму, добавив в конец ответа тег [PRISON] 30 [/PRISON] (30 минут). Без этого тега система не посадит его в тюрьму!
@@ -4845,13 +4860,11 @@ ${rumorsText}
 В каждом ответе во время сюжета или изменения состояния ты ОБЯЗАН по возможности выводить краткую сводку в самом конце:
 [Статус: Игрок (Лвл: ${activeChar?.rpg?.level || 1}) | Локация: (Текущая локация или "В пути")]
 
-Если сюжетные вещи (ключи, письма, артефакты) персонажа ${charName} изменились, ИЛИ если игрок сдает квест, ОБЯЗАТЕЛЬНО добавь в самый конец своего ответа блок:
+Если игрок сдает квест, ОБЯЗАТЕЛЬНО добавь в самый конец своего ответа блок:
 [UPDATE_CHAR]
 {
-  "inventory": "список сюжетных вещей (не пиши сюда оружие и броню)", 
-  "systemItems": ["iron_sword", "health_potion"], // Укажи ID предметов из базы, которые есть у игрока в инвентаре (не надетые). Если предметов нет, оставь пустой массив [].
   "addXp": 0, // ВЫДАВАЙ ОПЫТ ТОЛЬКО ЗА ВЫПОЛНЕНИЕ КВЕСТА (от 300 до 1000 XP). За обычные разговоры и действия пиши 0.
-  "addQuestComplete": "D" // УКАЗЫВАТЬ РАНГ ЗАДАНИЯ (D, C, B...) СТРОГО И ТОЛЬКО КОГДА ИГРОК ВЕРНУЛСЯ В ГИЛЬДИЮ И ВЫБРАЛ "🏅 Регистратура", чтобы сдать трофей! Если игрок всё еще в бою или в лесу, НЕ ПИШИ ЭТО ПОЛЕ (удали его), а просто добавь трофей в inventory.
+  "addQuestComplete": "D" // УКАЗЫВАТЬ РАНГ ЗАДАНИЯ (D, C, B...) СТРОГО И ТОЛЬКО КОГДА ИГРОК ВЕРНУЛСЯ В ГИЛЬДИЮ И ВЫБРАЛ "🏅 Регистратура", чтобы сдать трофей! Если игрок всё еще в бою или в лесу, НЕ ПИШИ ЭТО ПОЛЕ (удали его).
 }
 [/UPDATE_CHAR]
 ВНИМАНИЕ ПО КВЕСТАМ: На месте убийства игроку НЕ начисляется золото и нет завершения квеста. После боя выдай ему предмет (например "Трофей монстра" или "Голова убитого чудовища") в инвентарь и скажи возвращаться в гильдию. Только в гильдии у Регистратуры он получает награду.
@@ -5121,6 +5134,16 @@ ${rumorsText}
             keyboard = undefined;
           }
 
+          let startNpcCombat = false;
+          let npcCombatId = '';
+          const npcCombatMatch = reply.match(/\[START_NPC_COMBAT\](.*?)\[\/START_NPC_COMBAT\]/i);
+          if (npcCombatMatch) {
+            startNpcCombat = true;
+            npcCombatId = npcCombatMatch[1].trim();
+            reply = reply.replace(/\[START_NPC_COMBAT\](.*?)\[\/START_NPC_COMBAT\]/i, '').trim();
+            keyboard = undefined;
+          }
+
           let startCombatData = null;
           const combatMatch = reply.match(/\[START_COMBAT\]\s*(\{[\s\S]*?\})\s*\[\/START_COMBAT\]/i);
           if (combatMatch) {
@@ -5139,6 +5162,41 @@ ${rumorsText}
             if (reply.trim().length > 0) await context.send({ message: reply });
           } else {
             if (reply.trim().length > 0) await context.send(reply);
+          }
+
+          if (startNpcCombat && activeCharDocId) {
+            const docSnap = await getDoc(doc(db, 'characters', activeCharDocId));
+            if (docSnap.exists()) {
+              const charData = docSnap.data();
+              if (!charData.rpg) charData.rpg = DEFAULT_RPG_DATA;
+              if (!charData.rpg.combat) {
+                // Fetch the NPC details to create the enemy
+                let npcEnemy = generateEnemy(charData.rpg.level, "Разъяренный NPC");
+                try {
+                   const npcSnap = await getDoc(doc(db, 'npcs', npcCombatId));
+                   if (npcSnap.exists()) {
+                      const n = npcSnap.data();
+                      npcEnemy = {
+                         id: n.id,
+                         name: n.name,
+                         level: n.level || 1,
+                         hp: n.hp || 100,
+                         maxHp: n.maxHp || 100,
+                         attack: n.attack || 10,
+                         defense: n.defense || 5,
+                         type: 'npc',
+                         goldReward: (n.level || 1) * 15
+                      };
+                   }
+                } catch(e) { console.error('Failed to load NPC for combat', e); }
+                charData.rpg.combat = {
+                  enemy: npcEnemy,
+                  isDefending: false
+                };
+                await setDoc(doc(db, 'characters', activeCharDocId), { rpg: JSON.parse(JSON.stringify(charData.rpg)) }, { merge: true });
+              }
+              await renderCombatUI(context, { id: activeCharDocId, ...charData } as any, 'NPC нападает на вас!');
+            }
           }
 
           if (startSoloCombat && activeCharDocId) {
@@ -5783,6 +5841,71 @@ app.get('/api/characters', async (req, res) => {
     res.json(chars);
   } catch (e) {
     res.status(500).json({ error: String(e) });
+  }
+});
+
+app.get('/api/npcs', async (req, res) => {
+  if (!db) return res.status(500).json({ error: 'DB not initialized' });
+  const npcsList: any[] = [];
+  try {
+    const npcsSnap = await getDocs(collection(db, 'npcs'));
+    npcsSnap.forEach(docSnap => {
+      npcsList.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    res.json({ npcs: npcsList });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+app.post('/api/npcs', async (req, res) => {
+  if (!db) return res.status(500).json({ error: 'DB not initialized' });
+  try {
+    const npc = req.body;
+    await setDoc(doc(db, 'npcs', npc.id), npc, { merge: true });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+app.post('/api/clean-story', async (req, res) => {
+  if (!db) return res.status(500).json({ error: 'DB not initialized' });
+  try {
+    res.json({ msg: 'Started background cleaning' });
+    const charsSnap = await getDocs(collection(db, "characters"));
+    let batch = writeBatch(db);
+    let count = 0;
+    
+    for (const docSnap of charsSnap.docs) {
+      const data = docSnap.data();
+      if(data.rpg && data.rpg.inventory) {
+        const inv = data.rpg.inventory;
+        let changed = false;
+        const newInv = inv.filter((item: any) => {
+          if (typeof item === 'string') { changed = true; return false; }
+          if (typeof item === 'object') {
+             if(item.type === 'story' || item.itemId === 'story') {
+                changed = true; return false;
+             }
+          }
+          return true;
+        });
+        if(changed) {
+           batch.update(docSnap.ref, { "rpg.inventory": newInv });
+           count++;
+           if (count >= 100) {
+               await batch.commit();
+               batch = writeBatch(db);
+               count = 0;
+           }
+        }
+      }
+    }
+    if (count > 0) await batch.commit();
+    console.log('Cleaned story items.');
+  } catch (e) {
+    console.error('Failed to clean story items', e);
   }
 });
 

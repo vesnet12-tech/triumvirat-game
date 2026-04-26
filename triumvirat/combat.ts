@@ -108,10 +108,11 @@ export function generateEnemy(level: number, forceName?: string, locationId?: st
   return {
     id: base.id,
     name: base.name,
-    hp: Math.max(100, Math.floor(baseHp * 1.5 * scale)), // Increased base HP multiplier and minimum
-    maxHp: Math.max(100, Math.floor(baseHp * 1.5 * scale)),
-    attack: Math.max(10, Math.floor(baseAttack * 1.2 * scale)), // increased base attack
-    defense: Math.max(6, Math.floor(baseDef * 1.2 * scale)), // increased base defense
+    level: targetLevel,
+    hp: Math.max(1, Math.floor(baseHp * scale)),
+    maxHp: Math.max(1, Math.floor(baseHp * scale)),
+    attack: Math.max(1, Math.floor(baseAttack * scale)),
+    defense: Math.floor(baseDef * scale),
     magicAttack: Math.floor(baseMagAtk * scale),
     magicDefense: Math.floor(baseMagDef * scale),
     agility: Math.floor(baseAgi * scale),
@@ -290,7 +291,20 @@ export function processCombatTurn(rpg: CharacterRPGData, action: 'attack' | 'def
 
 function handleVictory(enemy: any, log: string, rpg: any) {
   log += `\n💀 ${enemy.name} повержен!\n`;
-  const xp = enemy.xpReward || enemy.level * 10;
+  const diff = (enemy.level || 1) - rpg.level;
+  let xp = 0;
+  if (diff === 0) {
+    xp = 400;
+  } else if (diff > 0) {
+    xp = 400 + diff * 100;
+  } else {
+    xp = Math.floor(400 / Math.pow(2, Math.abs(diff)));
+  }
+  
+  if (enemy.isBoss) {
+    xp *= 2;
+  }
+
   const gold = enemy.goldReward || enemy.level * 5;
   const arenaTokens = enemy.arenaTokens || 0;
   const lootDrops: string[] = [];

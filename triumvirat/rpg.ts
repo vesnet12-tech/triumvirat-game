@@ -83,7 +83,7 @@ export const DEFAULT_RPG_DATA: CharacterRPGData = {
 };
 
 export function getXpRequired(level: number): number {
-  return level * 2000; // 2000 XP for lvl 2, 4000 for lvl 3, etc.
+  return level * 1000;
 }
 
 export function addXp(rpg: CharacterRPGData, amount: number): boolean {

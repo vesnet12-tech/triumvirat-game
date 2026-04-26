@@ -215,15 +215,31 @@ export function handleExplorationEvent(char: any, command: string): { msg: strin
          }
          
          char.rpg.inventory = char.rpg.inventory || [];
-         const pot = 'hp_potion_1';
+         let pot = 'cons_1';
+         let potName = 'Малое зелье здоровья';
+         const r = Math.random() * 125;
+         if (r < 5) {
+             pot = 'cons_4';
+             potName = 'Эликсир Жизни';
+         } else if (r < 15) {
+             pot = 'cons_3';
+             potName = 'Большое зелье здоровья';
+         } else if (r < 45) {
+             pot = 'cons_2';
+             potName = 'Среднее зелье здоровья';
+         }
+         
          const ex = char.rpg.inventory.find((i:any)=>i.itemId===pot);
          if (ex) ex.amount++;
          else char.rpg.inventory.push({ itemId: pot, amount: 1 });
-         return { msg: `💫 Возле старого лагеря вы нашли Малое зелье здоровья!` };
+         return { msg: `💫 Возле старого лагеря вы нашли ${potName}!` };
       }
    }
    
    if (chosenType === 'trap') {
+       if (Math.random() < 0.5) {
+           return { msg: `💨 Ловушка сработала, но вы успели увернуться в последний момент!` };
+       }
        const hpLoss = Math.max(1, Math.floor((char.rpg.baseStats?.hp || 10) * 0.15));
        char.rpg.baseStats.hp = Math.max(1, char.rpg.baseStats.hp - hpLoss);
        let trapMsg = `🩸 Вы наступили на скрытую ловушку! Потеряно ${hpLoss} ХП.`;

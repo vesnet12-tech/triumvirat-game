@@ -25,12 +25,13 @@ interface BotSettings {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'settings' | 'characters' | 'god' | 'world' | 'database'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'settings' | 'characters' | 'god' | 'world' | 'database' | 'npcs'>('dashboard');
   const [status, setStatus] = useState<Status | null>(null);
   const [settings, setSettings] = useState<BotSettings>({ vkToken: '', geminiKeys: [], vkGroupId: '', creatorId: '' });
   const [characters, setCharacters] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [items, setItems] = useState<Record<string, any>>({});
+  const [npcs, setNpcs] = useState<any[]>([]);
   const [races, setRaces] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [selectedChar, setSelectedChar] = useState<any | null>(null);
@@ -264,6 +265,8 @@ export default function App() {
       fetch('/api/items').then(r => r.json()).then(setItems);
     } else if (activeTab === 'world') {
       fetch('/api/locations').then(r => r.json()).then(setLocations);
+    } else if (activeTab === 'npcs') {
+      fetch('/api/npcs').then(r => r.json()).then(res => setNpcs(res.npcs || []));
     } else if (activeTab === 'database') {
       fetch('/api/items').then(r => r.json()).then(setItems);
       fetch('/api/races').then(r => r.json()).then(setRaces);
@@ -364,6 +367,12 @@ export default function App() {
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${activeTab === 'world' ? 'bg-emerald-500/20 text-emerald-400' : 'hover:bg-neutral-900 text-neutral-400'}`}
           >
             <Activity className="w-4 h-4" /> Мир
+          </button>
+          <button 
+            onClick={() => setActiveTab('npcs')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${activeTab === 'npcs' ? 'bg-blue-500/20 text-blue-400' : 'hover:bg-neutral-900 text-neutral-400'}`}
+          >
+            <UserCircle className="w-4 h-4" /> NPC
           </button>
           <button 
             onClick={() => setActiveTab('settings')}
@@ -819,6 +828,145 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {activeTab === 'npcs' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center mb-6">
+               <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                 <UserCircle className="w-6 h-6 text-blue-400" />
+                 Управление NPC
+               </h2>
+               <button onClick={async () => {
+                   setModalMessage('Создание NPC...');
+                   const newId = `npc_${Date.now()}`;
+                   const newNpc = { id: newId, name: 'Новый NPC', prompt: '', level: 1, hp: 100, maxHp: 100, attack: 10, defense: 5, locationId: 'loc_starter', greeting: 'Привет.', hostile: false };
+                   await fetch('/api/npcs', {
+                       method: 'POST',
+                       headers: { 'Content-Type': 'application/json' },
+                       body: JSON.stringify(newNpc)
+                   });
+                   const res = await fetch('/api/npcs').then(r => r.json());
+                   setNpcs(res.npcs || []);
+                   setModalMessage('');
+               }} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors font-medium text-sm">
+                 + Добавить NPC
+               </button>
+            </div>
+            
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+               {npcs.map(npc => (
+                   <div key={npc.id} className="bg-neutral-900 border border-neutral-800 p-5 rounded-xl shadow-sm flex flex-col gap-4">
+                       <div className="flex justify-between items-start">
+                         <div className="space-y-1">
+                           <input type="text" value={npc.name} onChange={(e) => {
+                               const arr = [...npcs];
+                               const idx = arr.findIndex(n => n.id === npc.id);
+                               arr[idx].name = e.target.value;
+                               setNpcs(arr);
+                           }} className="bg-transparent border-b border-transparent hover:border-neutral-700 focus:border-blue-500 outline-none text-lg font-bold text-white px-1 py-0.5 transition-colors" />
+                           <div className="text-xs text-neutral-500 font-mono pl-1 px-1">ID: {npc.id}</div>
+                         </div>
+                         <button onClick={async () => {
+                             setModalMessage('Сохранение...');
+                             await fetch('/api/npcs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(npc) });
+                             setModalMessage('Сохранено!');
+                             setTimeout(() => setModalMessage(''), 1000);
+                         }} className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-sm rounded transition-colors">Сохранить</button>
+                       </div>
+                       
+                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-neutral-950 p-3 rounded-lg border border-neutral-900/50">
+                         <div>
+                            <label className="block text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Уровень</label>
+                            <input type="number" value={npc.level || 1} onChange={e => {
+                               const arr = [...npcs]; arr.find(n => n.id === npc.id)!.level = Number(e.target.value); setNpcs(arr);
+                            }} className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-sm text-neutral-300 outline-none focus:border-blue-500" />
+                         </div>
+                         <div>
+                            <label className="block text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Max HP</label>
+                            <input type="number" value={npc.maxHp || 100} onChange={e => {
+                               const val = Number(e.target.value);
+                               const arr = [...npcs]; const n = arr.find(nx => nx.id === npc.id)!; n.maxHp = val; n.hp = val; setNpcs(arr);
+                            }} className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-sm text-neutral-300 outline-none focus:border-blue-500" />
+                         </div>
+                         <div>
+                            <label className="block text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Атака</label>
+                            <input type="number" value={npc.attack || 10} onChange={e => {
+                               const arr = [...npcs]; arr.find(n => n.id === npc.id)!.attack = Number(e.target.value); setNpcs(arr);
+                            }} className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-sm text-neutral-300 outline-none focus:border-blue-500" />
+                         </div>
+                         <div>
+                            <label className="block text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Защита</label>
+                            <input type="number" value={npc.defense || 5} onChange={e => {
+                               const arr = [...npcs]; arr.find(n => n.id === npc.id)!.defense = Number(e.target.value); setNpcs(arr);
+                            }} className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-sm text-neutral-300 outline-none focus:border-blue-500" />
+                         </div>
+                       </div>
+                       
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                         <div className="space-y-1">
+                            <label className="block text-xs font-semibold text-neutral-400">ID Локации <span className="font-normal text-neutral-500">(где обитает)</span></label>
+                            <input type="text" value={npc.locationId || ''} onChange={e => {
+                               const arr = [...npcs]; arr.find(n => n.id === npc.id)!.locationId = e.target.value; setNpcs(arr);
+                            }} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-neutral-300 outline-none focus:border-blue-500 focus:bg-neutral-900 transition-colors" placeholder="loc_starter" />
+                         </div>
+                         <div className="flex items-center pt-5">
+                            <label className="flex items-center gap-2 cursor-pointer group">
+                               <input type="checkbox" checked={npc.hostile || false} onChange={e => {
+                                   const arr = [...npcs]; arr.find(n => n.id === npc.id)!.hostile = e.target.checked; setNpcs(arr);
+                               }} className="w-4 h-4 rounded border-neutral-700 text-red-500 focus:ring-red-500/20 bg-neutral-900" />
+                               <span className="text-sm font-medium text-neutral-300 group-hover:text-red-400 transition-colors">Враждебный по умолчанию</span>
+                            </label>
+                         </div>
+                       </div>
+                       
+                       <div className="space-y-3 pt-2">
+                           <div>
+                             <label className="block text-xs font-semibold text-neutral-400 mb-1.5">Приветствие <span className="font-normal text-neutral-500">(первая фраза)</span></label>
+                             <textarea value={npc.greeting || ''} onChange={e => {
+                                const arr = [...npcs]; arr.find(n => n.id === npc.id)!.greeting = e.target.value; setNpcs(arr);
+                             }} className="w-full h-16 bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-neutral-300 outline-none focus:border-blue-500 focus:bg-neutral-900 transition-colors resize-none" placeholder="Что ты забыл здесь, путник?" />
+                           </div>
+                           <div>
+                             <label className="block text-xs font-semibold text-neutral-400 mb-1.5 flex justify-between items-end">
+                               Промпт <span className="text-[10px] font-normal text-neutral-500 bg-neutral-800 px-1.5 py-0.5 rounded">Как ИИ должен отыгрывать</span>
+                             </label>
+                             <textarea value={npc.prompt || ''} onChange={e => {
+                                const arr = [...npcs]; arr.find(n => n.id === npc.id)!.prompt = e.target.value; setNpcs(arr);
+                             }} className="w-full h-24 bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-neutral-300 outline-none focus:border-blue-500 focus:bg-neutral-900 transition-colors resize-none font-mono" placeholder="Ворчливый старик, который не любит чужаков, но знает секрет руин..." />
+                           </div>
+                       </div>
+                   </div>
+               ))}
+               {npcs.length === 0 && (
+                   <div className="col-span-full py-12 text-center border-2 border-dashed border-neutral-800 rounded-xl">
+                       <p className="text-neutral-500 font-medium">Пока нет созданных NPC.</p>
+                       <p className="text-neutral-600 space-x-2 mt-2 text-sm">Добавьте нового NPC или запустите скрипт генерации.</p>
+                       <button onClick={async () => {
+                           setModalMessage('Генерация 50 NPC...');
+                           const LOCATIONS = ["loc_starter", "loc_forest", "loc_cave", "loc_mountain", "loc_ruins", "loc_swamp", "loc_desert"];
+                           const PROMPTS = ["Ворчливый старик, который не любит чужаков, но много знает.", "Добрая торговка, всегда предложит поесть.", "Уставший стражник, мечтает о конце смены.", "Хитрый мошенник, пытается продать фальшивые артефакты.", "Загадочный маг, говорит загадками.", "Веселый бард, всегда поет песни о героях.", "Суровый кузнец, уважает только силу.", "Наглый воришка-подросток.", "Сумасшедший ученый, ищет редкие ингредиенты.", "Благородный рыцарь, ищет тех, кому нужна помощь."];
+                           for(let i=1; i<=50; i++) {
+                              const loc = LOCATIONS[i % LOCATIONS.length];
+                              const prompt = PROMPTS[i % PROMPTS.length];
+                              const isHostile = Math.random() < 0.2;
+                              await fetch('/api/npcs', {
+                                  method: 'POST',
+                                  headers: {'Content-Type': 'application/json'},
+                                  body: JSON.stringify({ id: `npc_${i}`, name: `НПС ${i}`, prompt: prompt, level: Math.max(1, Math.floor(i / 2)), hp: 100 + i * 20, maxHp: 100 + i * 20, attack: 10 + i * 2, defense: 5 + i, locationId: loc, greeting: "Приветствую, путник.", hostile: isHostile })
+                              });
+                           }
+                           const res = await fetch('/api/npcs').then(r => r.json());
+                           setNpcs(res.npcs || []);
+                           setModalMessage('');
+                       }} className="mt-4 px-4 py-2 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 rounded-lg text-sm transition-colors font-medium border border-indigo-500/20">
+                           Сгенерировать базовых 50 NPC
+                       </button>
+                   </div>
+               )}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'database' && (
           <div className="space-y-6">
             <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-sm">

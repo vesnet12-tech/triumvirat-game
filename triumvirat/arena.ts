@@ -21,9 +21,9 @@ export const ARENA_NPCS: ArenaNPC[] = [
 
 // Special Arena Items (Token shop)
 export const ARENA_ITEMS = [
-  { itemId: 'wpn_7', id: 'wpn_7', name: 'Кровавый клинок (Epic)', cost: 150 },
-  { itemId: 'arm_6', id: 'arm_6', name: 'Ледяная мантия теней (Epic)', cost: 200 },
-  { itemId: 'acc_5', id: 'acc_5', name: 'Древний кристалл Титана (Epic)', cost: 250 },
-  { itemId: 'wpn_8', id: 'wpn_8', name: 'Великий Посох Архимага (Legendary)', cost: 500 },
-  { itemId: 'arm_7', id: 'arm_7', name: 'Таинственная чешуя Дракона (Legendary)', cost: 500 }
+  { itemId: 'wpn_7', id: 'wpn_7', name: 'Кровавый клинок (Epic)', cost: 150, type: 'weapon', statsMult: 1.5 },
+  { itemId: 'arm_6', id: 'arm_6', name: 'Ледяная мантия теней (Epic)', cost: 200, type: 'armor', statsMult: 1.5 },
+  { itemId: 'acc_5', id: 'acc_5', name: 'Древний кристалл Титана (Epic)', cost: 250, type: 'accessory', statsMult: 2 },
+  { itemId: 'wpn_8', id: 'wpn_8', name: 'Великий Посох Архимага (Legendary)', cost: 500, type: 'weapon', statsMult: 3 },
+  { itemId: 'arm_7', id: 'arm_7', name: 'Таинственная чешуя Дракона (Legendary)', cost: 500, type: 'armor', statsMult: 3 }
 ];
