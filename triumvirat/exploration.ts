@@ -51,6 +51,12 @@ export function getExplorationKeyboard(char: any) {
       return kb;
   }
   
+  if (expState === 'ore_cave') {
+      kb.textButton({ label: '⛏️ Искать лут (5 мин)', payload: { command: 'explore_ore_cave_search' }, color: Keyboard.POSITIVE_COLOR })
+        .textButton({ label: '⬅️ Уйти дальше', payload: { command: 'explore_leave' }, color: Keyboard.SECONDARY_COLOR });
+      return kb;
+  }
+  
   if (expState === 'dead_end') {
       kb.textButton({ label: '⬅️ Вернуться назад', payload: { command: 'explore_leave' }, color: Keyboard.SECONDARY_COLOR });
       return kb;
@@ -152,6 +158,10 @@ export function handleExplorationEvent(char: any, command: string): { msg: strin
    if (depth === 3 && !char.rpg.foundBoss) {
       eventTableOpts.push({ type: 'boss', weight: 15 });
    }
+   
+   if (locId === 'loc_forest_whispering') {
+      eventTableOpts.push({ type: 'ore_cave', weight: 10 });
+   }
 
    const totalWeight = eventTableOpts.reduce((acc, curr) => acc + curr.weight, 0);
    const roll = Math.random() * totalWeight;
@@ -211,6 +221,11 @@ export function handleExplorationEvent(char: any, command: string): { msg: strin
        return { msg: '🧙‍♂️ Вы наткнулись на палатку странствующего торговца! Хотите посмотреть его товары?' };
    }
    
+   if (chosenType === 'ore_cave') {
+       char.rpg.exploreState = 'ore_cave';
+       return { msg: '⛏️ За кустами вы обнаружили заброшенную рудную пещеру. Вы можете потратить 5 минут на поиски лута или пойти дальше.' };
+   }
+
    if (chosenType === 'npc_encounter') {
        char.rpg.exploreState = 'npc_encounter';
        return { msg: '👤 Впереди маячит фигура. Кажется, это один из местных. Хотите подойти и заговорить?' };
@@ -263,7 +278,10 @@ export function handleExplorationEvent(char: any, command: string): { msg: strin
    }
    
    if (chosenType === 'trap') {
-       if (Math.random() < 0.5) {
+       const stats = char.rpg.baseStats; // BaseStats actually doesn't have it, we need calculateTotalStats
+       const rStats = require('./rpg.js').calculateTotalStats(char.rpg);
+       const tDodge = rStats.trapDodge || 0;
+       if (Math.random() * 100 < 50 + tDodge) {
            return { msg: `💨 Ловушка сработала, но вы успели увернуться в последний момент!` };
        }
        const hpLoss = Math.max(1, Math.floor((char.rpg.baseStats?.hp || 10) * 0.15));

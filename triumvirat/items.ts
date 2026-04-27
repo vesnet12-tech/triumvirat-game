@@ -46,6 +46,242 @@ export interface InventoryItem {
 }
 
 export const ITEM_CATALOG: Record<string, Item> = {
+  "boss_ent_helm": {
+    "id": "boss_ent_helm",
+    "name": "Корона Шепчущего Леса",
+    "description": "Сплетена из древних корней. Дает странную выносливость.",
+    "type": "helmet" as any,
+    "rarity": "rare" as any,
+    "price": 1000,
+    "stats": {"hp":50,"defense":25,"magicDefense":10}
+  },
+  "boss_ent_armor": {
+    "id": "boss_ent_armor",
+    "name": "Кольчуга Древнего Энта",
+    "description": "Кажется, что куски коры живут своей жизнью и защищают владельца.",
+    "type": "armor" as any,
+    "rarity": "epic" as any,
+    "price": 5000,
+    "stats": {"hp":120,"defense":45,"maxHp":120}
+  },
+  "boss_ent_acc": {
+    "id": "boss_ent_acc",
+    "name": "Семя Владыки Леса",
+    "description": "Наполняет энергией природы.",
+    "type": "accessory" as any,
+    "rarity": "epic" as any,
+    "price": 5000,
+    "stats": {"magicAttack":30,"hp":100}
+  },
+  "boss_ent_acc_leg": {
+    "id": "boss_ent_acc_leg",
+    "name": "Слеза Древнего Энта",
+    "description": "Легендарный артефакт, изливающий нескончаемый поток жизни.",
+    "type": "accessory" as any,
+    "rarity": "legendary" as any,
+    "price": 25000,
+    "stats": {"hp":300,"maxHp":300,"defense":30,"magicDefense":30}
+  },
+  "wpn_req_war_1": {
+    "id": "wpn_req_war_1",
+    "name": "Освященный Гладиус",
+    "description": "Крепкий клинок для воина.",
+    "type": "weapon" as any,
+    "rarity": "uncommon" as any,
+    "price": 2500,
+    "stats": {"attack":40,"defense":10},
+    "allowedClasses": ["Воин"]
+  },
+  "wpn_req_war_2": {
+    "id": "wpn_req_war_2",
+    "name": "Громовой Двуручник",
+    "description": "Огромный меч, искрящийся молниями.",
+    "type": "weapon" as any,
+    "rarity": "epic" as any,
+    "price": 15000,
+    "stats": {"attack":120,"critDamage":20},
+    "allowedClasses": ["Воин","Берсерк"]
+  },
+  "wpn_req_mag_1": {
+    "id": "wpn_req_mag_1",
+    "name": "Посох Ясновидца",
+    "description": "Усиливает магические потоки.",
+    "type": "weapon" as any,
+    "rarity": "uncommon" as any,
+    "price": 2500,
+    "stats": {"magicAttack":50,"mp":30},
+    "allowedClasses": ["Маг","Иллюзионист"]
+  },
+  "wpn_req_mag_2": {
+    "id": "wpn_req_mag_2",
+    "name": "Сфера Пустоты",
+    "description": "Темный артефакт поражающей мощи.",
+    "type": "weapon" as any,
+    "rarity": "epic" as any,
+    "price": 15000,
+    "stats": {"magicAttack":140,"magicDefense":20},
+    "allowedClasses": ["Маг","Чернокнижник"]
+  },
+  "wpn_req_rog_1": {
+    "id": "wpn_req_rog_1",
+    "name": "Кинжал Тени",
+    "description": "Лезвие, не отражающее свет.",
+    "type": "weapon" as any,
+    "rarity": "uncommon" as any,
+    "price": 2500,
+    "stats": {"attack":35,"agility":15},
+    "allowedClasses": ["Разбойник","Ассасин"]
+  },
+  "wpn_req_rog_2": {
+    "id": "wpn_req_rog_2",
+    "name": "Парные Клинки Фантома",
+    "description": "Режут пространство и время.",
+    "type": "weapon" as any,
+    "rarity": "epic" as any,
+    "price": 15000,
+    "stats": {"attack":110,"critRate":15,"agility":30},
+    "allowedClasses": ["Разбойник","Ассасин"]
+  },
+  "wpn_req_arc_1": {
+    "id": "wpn_req_arc_1",
+    "name": "Охотничий Длинный Лук",
+    "description": "Отличный лук для стрельбы на дистанцию.",
+    "type": "weapon" as any,
+    "rarity": "uncommon" as any,
+    "price": 2500,
+    "stats": {"attack":45,"agility":5},
+    "allowedClasses": ["Лучник","Охотник"]
+  },
+  "wpn_req_arc_2": {
+    "id": "wpn_req_arc_2",
+    "name": "Штормовой Арбалет",
+    "description": "Каждый выстрел подобен удару грома.",
+    "type": "weapon" as any,
+    "rarity": "epic" as any,
+    "price": 15000,
+    "stats": {"attack":130,"critRate":10},
+    "allowedClasses": ["Лучник"]
+  },
+  "wpn_req_pri_1": {
+    "id": "wpn_req_pri_1",
+    "name": "Кадило Веры",
+    "description": "Наполняет союзников светом.",
+    "type": "weapon" as any,
+    "rarity": "uncommon" as any,
+    "price": 2500,
+    "stats": {"magicAttack":40,"magicDefense":20},
+    "allowedClasses": ["Жрец"]
+  },
+  "wpn_req_pri_2": {
+    "id": "wpn_req_pri_2",
+    "name": "Священный Жезл Рассвета",
+    "description": "Прогоняет тьму одним взмахом.",
+    "type": "weapon" as any,
+    "rarity": "epic" as any,
+    "price": 15000,
+    "stats": {"magicAttack":110,"hp":100},
+    "allowedClasses": ["Жрец","Паладин"]
+  },
+  "wpn_req_pal_1": {
+    "id": "wpn_req_pal_1",
+    "name": "Булава Справедливости",
+    "description": "Оружие святого воителя.",
+    "type": "weapon" as any,
+    "rarity": "uncommon" as any,
+    "price": 2500,
+    "stats": {"attack":30,"defense":25},
+    "allowedClasses": ["Паладин"]
+  },
+  "wpn_req_pal_2": {
+    "id": "wpn_req_pal_2",
+    "name": "Молот Небес",
+    "description": "Карает грешников яркой вспышкой.",
+    "type": "weapon" as any,
+    "rarity": "epic" as any,
+    "price": 15000,
+    "stats": {"attack":100,"magicAttack":50,"defense":40},
+    "allowedClasses": ["Паладин"]
+  },
+  "wpn_req_dru_1": {
+    "id": "wpn_req_dru_1",
+    "name": "Осколок Древа Животных",
+    "description": "Мощный природный артефакт.",
+    "type": "weapon" as any,
+    "rarity": "uncommon" as any,
+    "price": 2500,
+    "stats": {"magicAttack":35,"attack":20},
+    "allowedClasses": ["Друид"]
+  },
+  "wpn_req_dru_2": {
+    "id": "wpn_req_dru_2",
+    "name": "Коса Жизни и Смерти",
+    "description": "Поддерживает баланс природы.",
+    "type": "weapon" as any,
+    "rarity": "epic" as any,
+    "price": 15000,
+    "stats": {"magicAttack":90,"attack":90},
+    "allowedClasses": ["Друид","Шаман"]
+  },
+  "wpn_req_bar_1": {
+    "id": "wpn_req_bar_1",
+    "name": "Зачарованная Флейта",
+    "description": "Ее музыка сводит с ума врагов.",
+    "type": "weapon" as any,
+    "rarity": "uncommon" as any,
+    "price": 2500,
+    "stats": {"magicAttack":30,"agility":20},
+    "allowedClasses": ["Бард"]
+  },
+  "wpn_req_bar_2": {
+    "id": "wpn_req_bar_2",
+    "name": "Арфа Звездного Света",
+    "description": "Струны из лунного луча.",
+    "type": "weapon" as any,
+    "rarity": "epic" as any,
+    "price": 15000,
+    "stats": {"magicAttack":90,"mp":150,"agility":40},
+    "allowedClasses": ["Бард"]
+  },
+  "wpn_req_mon_1": {
+    "id": "wpn_req_mon_1",
+    "name": "Тяжелые Кастеты",
+    "description": "Атака в ближнем бою.",
+    "type": "weapon" as any,
+    "rarity": "uncommon" as any,
+    "price": 2500,
+    "stats": {"attack":35,"agility":10},
+    "allowedClasses": ["Монах","Боец"]
+  },
+  "wpn_req_mon_2": {
+    "id": "wpn_req_mon_2",
+    "name": "Перчатки Дракона",
+    "description": "Излучают жар при ударе.",
+    "type": "weapon" as any,
+    "rarity": "epic" as any,
+    "price": 15000,
+    "stats": {"attack":110,"critRate":10,"agility":25},
+    "allowedClasses": ["Монах","Боец"]
+  },
+  "wpn_req_nec_1": {
+    "id": "wpn_req_nec_1",
+    "name": "Книга Мертвых",
+    "description": "Наполнена темной магией.",
+    "type": "weapon" as any,
+    "rarity": "uncommon" as any,
+    "price": 2500,
+    "stats": {"magicAttack":50,"hp":-20},
+    "allowedClasses": ["Некромант","Рыцарь Смерти"]
+  },
+  "wpn_req_nec_2": {
+    "id": "wpn_req_nec_2",
+    "name": "Посох Черепов",
+    "description": "Шепчет секреты мертвецов.",
+    "type": "weapon" as any,
+    "rarity": "epic" as any,
+    "price": 15000,
+    "stats": {"magicAttack":150,"magicDefense":-20},
+    "allowedClasses": ["Некромант","Чернокнижник"]
+  },
   "wpn_1": {
     "id": "wpn_1",
     "name": "Простой меч",
@@ -356,7 +592,7 @@ export const ITEM_CATALOG: Record<string, Item> = {
     "name": "Малое зелье здоровья",
     "rarity": "common",
     "healAmount": 50,
-    "price": 30,
+    "price": 50,
     "type": "consumable",
     "description": "Восстанавливает 50 ХП."
   },
@@ -7207,10 +7443,10 @@ export const ITEM_CATALOG: Record<string, Item> = {
   "enhance_stone_4": { "id": "enhance_stone_4", "name": "Великий Кристалл Энд", "type": "material", "rarity": "epic", "price": 10000, "description": "Используется у кузнеца для заточки снаряжения." },
   "enhance_stone_5": { "id": "enhance_stone_5", "name": "Легендарный Кристалл Энд", "type": "material", "rarity": "legendary", "price": 50000, "description": "Используется у кузнеца для заточки снаряжения." },
   "mat_pelt_1": { "id": "mat_pelt_1", "name": "Обычная Шкура", "type": "material", "rarity": "common", "price": 100, "description": "Шкура зверя. Можно продать в магазине." },
-  "mat_pelt_2": { "id": "mat_pelt_2", "name": "Крепкая Шкура", "type": "material", "rarity": "uncommon", "price": 200, "description": "Шкура сильного зверя. Можно продать в магазине." },
+  "mat_pelt_2": { "id": "mat_pelt_2", "name": "Крепкая Шкура", "type": "material", "rarity": "uncommon", "price": 300, "description": "Шкура сильного зверя. Можно продать в магазине." },
   "mat_pelt_3": { "id": "mat_pelt_3", "name": "Редкая Шкура", "type": "material", "rarity": "rare", "price": 400, "description": "Ценная шкура. Можно продать в магазине." },
-  "mat_bone_1": { "id": "mat_bone_1", "name": "Кость Монстра", "type": "material", "rarity": "common", "price": 10, "description": "Обычная кость. Можно продать." },
-  "mat_fang_1": { "id": "mat_fang_1", "name": "Клык Зверя", "type": "material", "rarity": "uncommon", "price": 45, "description": "Острый клык. Можно продать." }
+  "mat_bone_1": { "id": "mat_bone_1", "name": "Кость Монстра", "type": "material", "rarity": "common", "price": 50, "description": "Обычная кость. Можно продать." },
+  "mat_fang_1": { "id": "mat_fang_1", "name": "Клык Зверя", "type": "material", "rarity": "uncommon", "price": 100, "description": "Острый клык. Можно продать." }
 
 };
 

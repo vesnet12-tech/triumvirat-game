@@ -277,7 +277,11 @@ export const MONSTER_CATALOG: Record<string, Monster> = {
     "loot": [
       { "itemId": "enhance_stone_2", "chance": 1.0 },
       { "itemId": "hp_potion_2", "chance": 1.0 },
-      { "itemId": "gem_dmg_1", "chance": 0.5 }
+      { "itemId": "gem_dmg_1", "chance": 0.5 },
+      { "itemId": "boss_ent_helm", "chance": 0.2 },
+      { "itemId": "boss_ent_armor", "chance": 0.1 },
+      { "itemId": "boss_ent_acc", "chance": 0.1 },
+      { "itemId": "boss_ent_acc_leg", "chance": 0.005 }
     ],
     "skills": ["w_dmg_2", "w_buff_1"]
   }

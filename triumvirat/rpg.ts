@@ -157,7 +157,13 @@ export function calculateTotalStats(rpg: CharacterRPGData) {
     resistIce: 0,
     resistLightning: 0,
     resistDark: 0,
-    resistHoly: 0
+    resistHoly: 0,
+    trapDodge: 0,
+    combatDodge: 0,
+    bonusDmgPct: 0,
+    healDmgPct: 0,
+    reflectChance: 0,
+    dropRate: 0
   };
   const setCounts: Record<string, number> = {};
 
@@ -246,6 +252,15 @@ export function calculateTotalStats(rpg: CharacterRPGData) {
       const skill = customSkill || SKILL_CATALOG[skillId];
       
       if (skill && skill.isPassive) {
+        if ((skill as any).buff) {
+           if ((skill as any).buff.stat === 'trapDodge') stats.trapDodge += (skill as any).buff.valPct;
+           if ((skill as any).buff.stat === 'combatDodge') stats.combatDodge += (skill as any).buff.valPct;
+           if ((skill as any).buff.stat === 'bonusDmgPct') stats.bonusDmgPct += (skill as any).buff.valPct;
+           if ((skill as any).buff.stat === 'maxHp') hpMultiplier += (skill as any).buff.valPct / 100;
+           if ((skill as any).buff.stat === 'maxMp') stats.maxMp = Math.floor(stats.maxMp * (1 + (skill as any).buff.valPct / 100));
+           if ((skill as any).buff.stat === 'attack') attackMultiplier += (skill as any).buff.valPct / 100;
+           if ((skill as any).buff.stat === 'defense') defenseMultiplier += (skill as any).buff.valPct / 100;
+        }
         // Passives give percentage increases to all stats based on power
         const multiplier = 1 + ((skill.power || 10) / 100);
         hpMultiplier += (multiplier - 1);
