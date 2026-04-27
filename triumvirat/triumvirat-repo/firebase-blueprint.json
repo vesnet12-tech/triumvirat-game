@@ -1,0 +1,56 @@
+{
+  "entities": {
+    "BotSettings": {
+      "title": "BotSettings",
+      "description": "Settings for the VK Bot",
+      "type": "object",
+      "properties": {
+        "vkToken": { "type": "string", "description": "VK API Token" },
+        "geminiKeys": { "type": "array", "items": { "type": "string" }, "description": "Array of Gemini API Keys" },
+        "vkGroupId": { "type": "number", "description": "VK Group ID" },
+        "creatorId": { "type": "number", "description": "VK Creator ID" }
+      }
+    },
+    "Character": {
+      "title": "Character",
+      "description": "D&D Character",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "number", "description": "VK User ID of the owner" },
+        "name": { "type": "string" },
+        "race": { "type": "string" },
+        "charClass": { "type": "string" },
+        "subclass": { "type": "string" },
+        "backstory": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "race", "charClass"]
+    },
+    "GameSession": {
+      "title": "GameSession",
+      "description": "Active game session state",
+      "type": "object",
+      "properties": {
+        "isActive": { "type": "boolean" },
+        "plotSummary": { "type": "string" },
+        "players": { "type": "array", "items": { "type": "number" } },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/BotSettings" },
+      "description": "Global bot settings"
+    },
+    "/characters/{characterId}": {
+      "schema": { "$ref": "#/entities/Character" },
+      "description": "Player characters"
+    },
+    "/sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/GameSession" },
+      "description": "Game sessions"
+    }
+  }
+}

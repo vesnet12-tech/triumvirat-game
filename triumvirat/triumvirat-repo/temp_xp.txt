@@ -1,0 +1,109 @@
+import express from 'express';
+import { CharacterRPGData, DEFAULT_RPG_DATA, calculateTotalStats, equipItem, unequipItem, useItem, dropItem, addXp } from './rpg.js';
+const app = express();
+app.use(express.json());
+app.use('/images', express.static(imagesDir));
+    .textButton({ label: 'Порт', payload: { command: 'city_explore', quarter: 'port' }, color: Keyboard.SECONDARY_COLOR })
+import { getExplorationKeyboard, handleExplorationEvent } from './exploration.js';
+    return getExplorationKeyboard(char);
+       const expectedChoices = Math.floor(activeChar.rpg.level / 2);
+       if (expectedChoices > choicesMade) {
+          if (char.rpg.exploreMerchantItems) {
+            char.rpg.exploreMerchantItems.forEach((itemIdStr: string, index: number) => {
+          keyboard.row().textButton({ label: '⬅️ Уйти', payload: { command: 'explore_leave' }, color: Keyboard.SECONDARY_COLOR });
+    const isMainMenuCommand = ['explore_', 'boss_fight', 'npc_', 'profile', 'stats', 'stats_page_', 'inventory', 'inv_page_', 'use', 'equipment', 'skills', 'skills_cat_', 'skill_view', 'shop', 'shop_cat', 'shop_item', 'shop_refresh', 'menu', 'hunt', 'combat', 'combat_back', 'combat_skills_menu', 'equip_skill', 'unequip_skill', 'work', 'work_port_', 'travel', 'travel_loc_page_', 'travel_select_', 'travel_confirm_', 'arena', 'arena_npc', 'eq_cat_', 'eq_page_', 'eq_item_view', 'gem_', 'shop_sell_menu', 'sell_page_', 'shop_sell_item', 'prison_escape', 'die_now', 'wait_revive', 'blacksmith', 'bs_page_', 'bs_select', 'bs_enhance', 'city_menu', 'city_explore', 'port_info', 'house_menu', 'house_buy', 'house_sleep', 'house_eat', 'house_sell', 'check_timer', 'close_menu', 'search_monsters', 'rest', 'go_deeper', 'travel_city', 'guild_', 'tavern_menu', 'tavern_sleep', 'party'].some(cmd => payloadCommand?.startsWith(cmd) || payloadCommand === cmd);
+        if (payloadCommand === 'city_explore') {
+            .textButton({ label: '⬅️ Назад', payload: { command: 'city_explore', quarter: 'port' }, color: Keyboard.SECONDARY_COLOR });
+            .textButton({ label: '⬅️ Назад', payload: { command: 'city_explore', quarter: 'port' }, color: Keyboard.SECONDARY_COLOR });
+              .textButton({ label: '⬅️ Назад', payload: { command: 'city_explore', quarter: 'port' }, color: Keyboard.SECONDARY_COLOR });
+            .textButton({ label: '⬅️ Уйти', payload: { command: 'city_explore', quarter: 'port' }, color: Keyboard.SECONDARY_COLOR })
+           const kb = Keyboard.builder().textButton({ label: '🔙 Вернуться в квартал', payload: { command: 'city_explore', quarter: 'port' }, color: Keyboard.PRIMARY_COLOR });
+        if (payloadCommand?.startsWith('explore_') || payloadCommand === 'search_monsters') {
+          if (char.rpg.exploreWaitEnd) {
+             const left = Math.ceil((char.rpg.exploreWaitEnd - Date.now()) / 1000);
+                    .textButton({ label: '⏳ Обновить', payload: { command: 'check_explore' }, color: Keyboard.PRIMARY_COLOR })
+                 char.rpg.exploreWaitEnd = null;
+          const isPathCmd = ['explore_path_', 'explore_climb', 'explore_river', 'explore_cave', 'explore_glade', 'explore_logging', 'explore_mushrooms', 'explore_cabin', 'explore_thicket', 'explore_forward', 'explore_left', 'explore_right'].some(p => payloadCommand.startsWith(p));
+          if (isPathCmd && !char.rpg.exploreWaitEnd && payloadCommand !== 'check_explore') {
+              char.rpg.exploreWaitEnd = Date.now() + waitTime;
+              char.rpg.pendingExploreCmd = payloadCommand;
+                .textButton({ label: '⏳ Как успехи?', payload: { command: 'check_explore' }, color: Keyboard.PRIMARY_COLOR })
+                     // Only resolve if it's expired and still has pending
+                     if (freshChar.rpg.exploreWaitEnd && freshChar.rpg.exploreWaitEnd <= Date.now() + 500 && freshChar.rpg.pendingExploreCmd) {
+                        freshChar.rpg.exploreWaitEnd = null;
+                        const eventCmd = freshChar.rpg.pendingExploreCmd;
+                        freshChar.rpg.pendingExploreCmd = null;
+                        const rez = handleExplorationEvent(freshChar, eventCmd);
+                     console.error("Timeout explore error", e);
+          if (payloadCommand === 'check_explore') {
+             if (char.rpg.exploreWaitEnd && char.rpg.exploreWaitEnd <= Date.now()) {
+                payloadCommand = char.rpg.pendingExploreCmd || 'explore_forward';
+                char.rpg.exploreWaitEnd = null;
+                char.rpg.pendingExploreCmd = null;
+          if (char.rpg.exploreState === 'enemy_spotted') {
+    if (payloadCommand === 'explore_attack') {
+                char.rpg.exploreState = null;
+                const enemy = char.rpg.exploreEnemy;
+                char.rpg.exploreEnemy = null;
+             } else if (payloadCommand === 'explore_stealth') {
+                char.rpg.exploreState = null;
+                   const enemy = char.rpg.exploreEnemy;
+                   char.rpg.exploreEnemy = null;
+             } else if (payloadCommand === 'explore_flee') {
+                char.rpg.exploreState = null;
+                char.rpg.exploreEnemy = null;
+          if (char.rpg.exploreState === 'obstacle') {
+             const isJump = payloadCommand === 'explore_off_path'; // Try to jump
+             char.rpg.exploreState = null;
+          if (char.rpg.exploreState === 'healing_stream') {
+             if (payloadCommand === 'explore_drink_stream') {
+                char.rpg.exploreState = null;
+                const maxPots = 3;
+                const potCount = Math.floor(Math.random() * (maxPots - minPots + 1)) + minPots;
+             // if it's explore_leave or something else
+          if (char.rpg.exploreState === 'merchant') {
+             if (payloadCommand === 'explore_trade') {
+                if (!char.rpg.exploreMerchantItems || char.rpg.exploreMerchantItems.length === 0) {
+                    char.rpg.exploreMerchantItems = merchantItems;
+                char.rpg.exploreMerchantItems.forEach((itemId: string, index: number) => {
+                      if (item.type === 'consumable') displayPrice = displayPrice * 2; // More expensive
+                keyboard.row().textButton({ label: '⬅️ Уйти', payload: { command: 'explore_leave' }, color: Keyboard.SECONDARY_COLOR });
+                char.rpg.exploreState = null;
+                delete char.rpg.exploreMerchantItems;
+          if (char.rpg.exploreState === 'dead_end' || char.rpg.exploreState === 'npc_encounter') {
+             if (payloadCommand === 'explore_talk') {
+                char.rpg.exploreState = null;
+                char.rpg.exploreState = null;
+          if (payloadCommand === 'explore_leave_next') {
+             char.rpg.exploreState = null;
+          if (payloadCommand === 'explore_leave_boss') {
+             char.rpg.exploreState = null;
+          const rez = handleExplorationEvent(char, payloadCommand!);
+                 xpReward: m.level * 40 * targetCount,
+                 xpReward: m.level * 60 * targetCount,
+             msg += `[${q.rank}-ранг] ${q.title}\nЦель: ${MONSTER_CATALOG[q.targetId]?.name || '???'}\n${q.desc}\nНаграда: ${q.goldReward}💰 ${q.xpReward} XP\n\n`;
+            const leveledUp = addXp(char.rpg, result.xp);
+            let msg = `🌲 Вы находите врага (${enemy.name}) и сразу атакуете!\n\n${result.log}\n💰 Получено ${result.gold} золота и ${result.xp} XP!`;
+            msg += `Ур: ${char.rpg.level || char.level || 1} | Опыт: ${char.rpg.xp}/${char.rpg.level * 1000}\n` +
+              xpReward: arenaLevel * 30,
+            const leveledUp = addXp(char.rpg, result.xp);
+            let msg = `${result.log}\n💰 Получено ${result.gold} золота и ${result.xp} XP!`;
+  "addXp": 0, // ВЫДАВАЙ ОПЫТ ТОЛЬКО ЗА ВЫПОЛНЕНИЕ КВЕСТА (от 300 до 1000 XP). За обычные разговоры и действия пиши 0.
+              // Apply XP for the action
+              let xpMessage = "";
+              if (updateData.addXp && typeof updateData.addXp === 'number' && updateData.addXp > 0) {
+                    const leveledUp = addXp(charData.rpg, updateData.addXp);
+                    xpMessage = `\n\n✨ Получено опыта: ${updateData.addXp} XP!`;
+                      xpMessage += `\n🌟 ПОЗДРАВЛЯЕМ! ${charName} достиг ${charData.rpg.level} уровня! Характеристики улучшены, здоровье восстановлено.`;
+                          xpMessage += `\n\n🎉 ПОЗДРАВЛЯЕМ! Ваш ранг в гильдии повышен до ${charData.rpg.guildRank}!`;
+                         xpMessage += `\n\n📈 Прогресс ранга: ${charData.rpg.completedQuestsCount}/${threshold} заданий ранга ${currentRank}.`;
+                      xpMessage += `\n\nℹ️ Задание ранга ${questRank} выполнено, но для повышения ранга нужны задания вашего текущего ранга (${currentRank}).`;
+                    xpMessage += `\n💰 За задание получено: ${goldEarned} золота!`;
+              reply += xpMessage;
+      let totalXp = 0;
+      combat.enemies.forEach(e => { totalXp += e.xpReward; totalGold += e.goldReward; });
+      const xpPerPlayer = Math.floor(totalXp / combat.players.length);
+             const leveledUp = addXp(activeChar.rpg, xpPerPlayer);
+             winMsg += `Получено: ${xpPerPlayer} XP, ${goldPerPlayer} 💰`;
+            const regex = new RegExp(`("${id}"(?:.|\\n)*?"${key}"\\s*:\\s*)[0-9]+`);
+    app.use(express.static(distPath));
