@@ -248,8 +248,13 @@ export default function App() {
         if (!res.ok) {
           throw new Error(`Server responded with ${res.status}: ${res.statusText}`);
         }
-        const data = await res.json();
-        setStatus(data);
+        
+        try {
+           const data = await res.json();
+           setStatus(data);
+        } catch (jsonErr) {
+           // ignore json parse error likely due to proxy downtime
+        }
       } catch (e) {
         console.error('Failed to fetch status', e);
       }

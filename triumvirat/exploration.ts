@@ -1,4 +1,5 @@
 import { Keyboard, MessageContext } from 'vk-io';
+import { calculateTotalStats } from './rpg.js';
 import { WORLD_LOCATIONS } from './locations.js';
 import { generateEnemy } from './combat.js';
 import { MONSTER_CATALOG } from './monsters.js';
@@ -279,7 +280,7 @@ export function handleExplorationEvent(char: any, command: string): { msg: strin
    
    if (chosenType === 'trap') {
        const stats = char.rpg.baseStats; // BaseStats actually doesn't have it, we need calculateTotalStats
-       const rStats = require('./rpg.js').calculateTotalStats(char.rpg);
+       const rStats = calculateTotalStats(char.rpg);
        const tDodge = rStats.trapDodge || 0;
        if (Math.random() * 100 < 50 + tDodge) {
            return { msg: `💨 Ловушка сработала, но вы успели увернуться в последний момент!` };

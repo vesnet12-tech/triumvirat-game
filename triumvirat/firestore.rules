@@ -23,5 +23,8 @@ service cloud.firestore {
     match /parties/{partyId} {
       allow read, write: if true;
     }
+    match /npcs/{npcId} {
+      allow read, write: if true;
+    }
   }
 }

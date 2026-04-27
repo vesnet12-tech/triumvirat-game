@@ -406,7 +406,7 @@ function performAttack(attacker: any, defender: any, combat: any, logRef: any, a
   let extraDodge = 0;
   if (!isPlayer && attacker.isBoss) {} // Boss doesn't have passives yet
   if (!isPlayer) {
-     const pStats = require('./rpg.js').calculateTotalStats(rpg);
+     const pStats = calculateTotalStats(rpg);
      extraDodge = pStats.combatDodge || 0;
   }
   let hitChance = 85 + Math.floor(attacker.agility / 2) - Math.floor(defender.agility / 2) - blindMod - extraDodge;

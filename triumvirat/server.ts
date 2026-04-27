@@ -5,7 +5,8 @@ import { GoogleGenAI } from '@google/genai';
 import cors from 'cors';
 import path from 'path';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, query, where, deleteDoc, writeBatch } from 'firebase/firestore';
+import { getAuth, signInAnonymously } from 'firebase/auth';
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, query, where, deleteDoc, writeBatch, setLogLevel } from 'firebase/firestore';
 import fs from 'fs';
 import config from './firebase-applet-config.json' assert { type: 'json' };
 import { getItemByName, ITEM_CATALOG, getItem, parseItemId, buildItemId } from './items.js';
@@ -19,6 +20,21 @@ import { ARENA_NPCS, ARENA_ITEMS } from './arena.js';
 
 const firebaseApp = initializeApp(config);
 const db = getFirestore(firebaseApp, config.firestoreDatabaseId);
+setLogLevel('silent');
+
+const safeSetDoc = async (docRef: any, data: any, options?: any) => {
+  try {
+     return await setDoc(docRef, data, options);
+  } catch (e) {
+     console.error('🔥 FIRESTORE WRITE ERROR on path:', docRef.path || docRef.id || 'unknown');
+     console.error(e);
+     return null; // Suppress throwing to avoid crashes
+  }
+};
+
+const fbAuth = getAuth(firebaseApp);
+// signInAnonymously(fbAuth).then(() => console.log('Successfully signed in anonymously.')).catch(e => console.error('Failed to sign in anonymously:', e));
+
 
 const app = express();
 app.use(cors());
@@ -30,6 +46,21 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+app.get('/api/status', (req, res) => {
+  if (!publicUrl && req.headers['x-forwarded-host']) {
+    publicUrl = `https://${req.headers['x-forwarded-host']}`;
+    console.log('Captured public URL for self-ping:', publicUrl);
+  }
+  console.log('API /api/status called');
+  res.json({
+    isGameActive,
+    playersCount: players.size,
+    logs: logs,
+    currentPlot
+  });
+});
+
 
 const PORT = 3000;
 
@@ -407,13 +438,14 @@ async function initBot() {
       }
       
       if (needsSkillUpdate) {
-        await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+        await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
       }
     }
     return char;
   }
 
   vk.updates.on('message_new', async (context) => {
+    return; // Bot is disabled
     if (context.isOutbox) return;
     
     const senderId = context.senderId;
@@ -475,7 +507,7 @@ async function initBot() {
              }
              activeChar.rpg.skillChoicesMade = choicesMade + 1;
              activeChar.rpg.pendingSkillChoiceOptions = null;
-             await setDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
              
              await context.send(`✨ Вы успешно изучили новый навык! Экипировать навыки можно в меню "Навыки".`);
              userLocks.delete(senderId);
@@ -512,7 +544,7 @@ async function initBot() {
               const unowned = allClassSkills.filter(sid => !(activeChar.rpg.unlockedSkills || []).includes(sid));
               const shuffled = [...unowned].sort(() => 0.5 - Math.random());
               activeChar.rpg.pendingSkillChoiceOptions = shuffled.slice(0, 3);
-              await setDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
+              await safeSetDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
           }
           
           const opts = activeChar.rpg.pendingSkillChoiceOptions;
@@ -530,7 +562,7 @@ async function initBot() {
           } else {
              // Out of skills
              activeChar.rpg.skillChoicesMade = choicesMade + 1;
-             await setDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
           }
        }
     }
@@ -541,7 +573,7 @@ async function initBot() {
           const pAction = context.messagePayload?.action;
           if (pAction === 'choose_subclass') {
              activeChar.subclass = context.messagePayload.subclass;
-             await setDoc(doc(db, 'characters', activeChar.id), { subclass: activeChar.subclass }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', activeChar.id), { subclass: activeChar.subclass }, { merge: true });
              await context.send(`🎉 Вы успешно получили власть подкласса: ${activeChar.subclass}! Новые возможности скоро откроются!`);
              userLocks.delete(senderId);
              return;
@@ -576,7 +608,7 @@ async function initBot() {
             charData.rpg.deathState = 'alive';
             charData.actionType = null;
             charData.actionEndTime = Date.now() - 1000;
-            await setDoc(doc(db, 'characters', kainChar.id), charData, { merge: true });
+            await safeSetDoc(doc(db, 'characters', kainChar.id), charData, { merge: true });
             await context.send("✨ Каин воскрешен. БОГ ВЫКЛЮЧЕН.");
         } else {
             await context.send("Каин не найден.");
@@ -596,7 +628,7 @@ async function initBot() {
         if (!activeChar.rpg.elaraEventStage) {
             console.log(`[DEBUG] Triggering Kain event stage 1.`);
             activeChar.rpg.elaraEventStage = 1;
-            await setDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
+            await safeSetDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
             
             await context.send("✨ Внезапно, между вами появляется Элара с группой крепких мужчин.");
             await new Promise(r => setTimeout(r, 1500));
@@ -615,7 +647,7 @@ async function initBot() {
             activeChar.rpg.deathState = 'dead';
             activeChar.actionType = 'dead';
             activeChar.actionEndTime = Date.now() + 3600 * 1000; // 1 hour sleep/death
-            await setDoc(doc(db, 'characters', activeChar.id), { 
+            await safeSetDoc(doc(db, 'characters', activeChar.id), { 
                 rpg: JSON.parse(JSON.stringify(activeChar.rpg)), 
                 actionEndTime: activeChar.actionEndTime,
                 actionType: activeChar.actionType 
@@ -626,7 +658,7 @@ async function initBot() {
         } else if (activeChar.rpg.elaraEventStage === 2) {
             console.log(`[DEBUG] Triggering Kain sword event.`);
             activeChar.rpg.elaraEventStage = 3;
-            await setDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
+            await safeSetDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
             
             const kb = Keyboard.builder()
                 .textButton({ label: '⚔️ Достать меч', payload: { command: 'kain_sword_take' }, color: Keyboard.NEGATIVE_COLOR })
@@ -670,12 +702,12 @@ async function initBot() {
     } catch (e) {}
 
     let payloadCommand = context.messagePayload?.command;
-    const payloadAction = context.messagePayload?.action;
+    let payloadAction = context.messagePayload?.action;
     const payloadItemId = context.messagePayload?.itemId;
 
     if (payloadCommand === 'select_char') {
       const charId = context.messagePayload.id;
-      await setDoc(doc(db, 'users', senderId.toString()), { activeCharId: charId }, { merge: true });
+      await safeSetDoc(doc(db, 'users', senderId.toString()), { activeCharId: charId }, { merge: true });
       const charDoc = await getDoc(doc(db, 'characters', charId));
       if (charDoc.exists()) {
         await context.send(`✅ Ты выбрал персонажа: ${charDoc.data().name}`);
@@ -730,7 +762,7 @@ async function initBot() {
             char.rpg.inventory.push({ itemId: payloadItemId, amount: 1 });
           }
 
-          await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           
           const cat = context.messagePayload.cat;
           const keyboard = Keyboard.builder()
@@ -831,7 +863,7 @@ async function initBot() {
           }
           keyboard.row().textButton({ label: '⬅️ Уйти', payload: { command: 'explore_leave' }, color: Keyboard.SECONDARY_COLOR });
 
-          await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           await context.send({ message: `✅ Ты успешно купил ${item.name} за ${customPrice} 💰!\n\n${msg}`, keyboard });
           return;
         }
@@ -842,7 +874,7 @@ async function initBot() {
         else if (payloadAction === 'use') result = useItem(char.rpg, payloadItemId);
 
         if (result.success) {
-          await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
         }
         
         if (payloadAction === 'equip' || payloadAction === 'unequip') {
@@ -1046,7 +1078,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
              oppChar.rpg.baseStats.hp = 0;
              oppChar.rpg.deathState = 'waiting_revive';
              oppChar.rpg.deathEndTime = Date.now() + 10 * 60000;
-             await setDoc(doc(db, 'characters', oppChar.id), { rpg: JSON.parse(JSON.stringify(oppChar.rpg)) }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', oppChar.id), { rpg: JSON.parse(JSON.stringify(oppChar.rpg)) }, { merge: true });
              if (vk) {
                await vk.api.messages.send({
                  peer_id: opponentId,
@@ -1152,7 +1184,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
              oppChar.rpg.baseStats.hp = 0;
              oppChar.rpg.deathState = 'waiting_revive';
              oppChar.rpg.deathEndTime = Date.now() + 10 * 60000;
-             await setDoc(doc(db, 'characters', oppChar.id), { rpg: JSON.parse(JSON.stringify(oppChar.rpg)) }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', oppChar.id), { rpg: JSON.parse(JSON.stringify(oppChar.rpg)) }, { merge: true });
              if (vk) {
                await vk.api.messages.send({
                  peer_id: opponentId,
@@ -1282,7 +1314,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             char.rpg.deathEndTime = null;
             char.rpg.baseStats.hp = calculateTotalStats(char.rpg).maxHp;
             char.location = 'city_1'; // Set back to main city
-            await setDoc(doc(db, 'characters', char.id), { location: char.location, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+            await safeSetDoc(doc(db, 'characters', char.id), { location: char.location, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
             chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок ${char.name} воскрес в городе после смерти.` }] });
             await context.send({ message: `✨ Вы воскресли в городе!`, keyboard: getCityKeyboard() });
           }
@@ -1290,7 +1322,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           if (text === 'умереть' || payloadCommand === 'die_now') {
             char.rpg.deathState = 'dead';
             char.rpg.deathEndTime = now.getTime() + 60 * 60000; // 1 hour
-            await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+            await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
             chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок ${char.name} умер от потери крови.` }] });
             await context.send(`💀 Вы решили умереть. Воскрешение через 1 час.`);
             return;
@@ -1311,7 +1343,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             // Time ran out, die
             char.rpg.deathState = 'dead';
             char.rpg.deathEndTime = now.getTime() + 60 * 60000; // 1 hour
-            await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+            await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
             chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок ${char.name} умер от потери крови.` }] });
             await context.send(`💀 Вы истекли кровью и умерли. Воскрешение через 1 час.`);
             return;
@@ -1332,12 +1364,12 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             
             if (roll <= chance) {
               char.rpg.prisonEndTime = null;
-              await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+              await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
               chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок ${char.name} успешно сбежал из тюрьмы.` }] });
               await context.send(`🏃‍♂️ УСПЕХ! Вы смогли вскрыть замок и сбежать из тюрьмы!`);
             } else {
               char.rpg.prisonEndTime = now.getTime() + 1 * 3600000; // 1 hour
-              await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+              await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
               chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок ${char.name} провалил побег из тюрьмы. Срок увеличен.` }] });
               await context.send(`🚨 ПРОВАЛ! Стража поймала вас при попытке побега. Ваш срок увеличен до 1 часа!`);
             }
@@ -1355,7 +1387,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           // Prison time over
           char.rpg.prisonEndTime = null;
           char.rpg.prisonEscapeAttempted = false;
-          await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок ${char.name} вышел из тюрьмы (срок закончился).` }] });
           await context.send(`🔓 Ваш срок заключения подошел к концу. Вы свободны!`);
         }
@@ -1393,7 +1425,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
              char.actionNotified = true;
              char.actionEndTime = null;
              char.actionType = null;
-             await setDoc(doc(db, 'characters', char.id), { 
+             await safeSetDoc(doc(db, 'characters', char.id), { 
                 actionNotified: true, actionEndTime: null, actionType: null 
              }, { merge: true });
              
@@ -1429,7 +1461,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               if (char.actionTargetLocation) {
                  char.location = char.actionTargetLocation;
               }
-              await setDoc(doc(db, 'characters', char.id), { 
+              await safeSetDoc(doc(db, 'characters', char.id), { 
                  actionNotified: true, actionEndTime: null, actionType: null, location: char.location
               }, { merge: true });
            }
@@ -1508,7 +1540,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
              } else {
                 await context.send(`⚔️ В тёмной подворотне ${quarterName} на вас попытался напасть бандит! Но, оценив вашу экипировку, он извинился и скрылся.`);
              }
-             await setDoc(doc(db, 'characters', char.id), { gold: char.gold }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold }, { merge: true });
           } else {
             await context.send(`Вы прогуливаетесь по локации: ${quarterName}. Вокруг суетятся жители, торговцы зазывают к палаткам, а стража лениво патрулирует улицы.`);
           }
@@ -1561,7 +1593,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           const mins = parseInt(payloadCommand.split('_')[2] || '5');
           const endTime = now.getTime() + mins * 60000;
           
-          await setDoc(doc(db, 'characters', char.id), { 
+          await safeSetDoc(doc(db, 'characters', char.id), { 
             rpg: JSON.parse(JSON.stringify(char.rpg)),
             actionEndTime: endTime,
             actionType: 'work_port',
@@ -1627,7 +1659,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           }
 
           char.rpg.house = 'abandoned_house';
-          await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           
           const kb = Keyboard.builder().textButton({ label: 'Войти в дом', payload: { command: 'house_menu' }, color: Keyboard.POSITIVE_COLOR });
           await context.send({ message: `🎉 Поздравляем! Вы приобрели Заброшенный дом за 100,000 💰.`, keyboard: kb });
@@ -1640,7 +1672,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           if (!char.rpg.baseStats) char.rpg.baseStats = { hp: maxHp, mp: maxMp, maxHp, maxMp, attack: 5, magicAttack: 0, defense: 2, magicDefense: 0, agility: 5, critRate: 5, critDamage: 150 };
           char.rpg.baseStats.hp = maxHp;
           char.rpg.baseStats.mp = maxMp;
-          await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           
           const kb = Keyboard.builder().textButton({ label: '🔙 Назад', payload: { command: 'house_menu' }, color: Keyboard.PRIMARY_COLOR });
           await context.send({ message: `💤 Вы отлично выспались в собственной постели. ХП и МП полностью восстановлены!`, keyboard: kb });
@@ -1650,7 +1682,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
         if (payloadCommand === 'house_eat') {
            if (!char.rpg.foodBuff) {
               char.rpg.foodBuff = { type: 'home_meal', multiplier: 1.2, charges: 10 };
-              await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+              await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
               const kb = Keyboard.builder().textButton({ label: '🔙 Назад', payload: { command: 'house_menu' }, color: Keyboard.PRIMARY_COLOR });
               await context.send({ message: `🍲 Вы вкусно поели! Вы чувствуете прилив сил.\nБафф 'Сытость': +20% к статам на следующие 10 сражений с монстрами.`, keyboard: kb });
            } else {
@@ -1664,7 +1696,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
            if (!char.rpg.house) return;
            char.rpg.house = undefined;
            char.gold = (char.gold || 0) + 50000;
-           await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
            
            const kb = Keyboard.builder().textButton({ label: '🔙 Вернуться в квартал', payload: { command: 'city_explore', quarter: 'port' }, color: Keyboard.PRIMARY_COLOR });
            await context.send({ message: `🏠 Вы продали дом за 50,000 💰.`, keyboard: kb });
@@ -1694,7 +1726,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
         if (payloadCommand === 'close_menu') {
           if (char.rpg?.conversingNpcId) {
              char.rpg.conversingNpcId = null;
-             await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           }
           if (char.location === 'city') {
             await context.send({ message: 'Вы вернулись к делам в городе.', keyboard: getCityKeyboard() });
@@ -1708,7 +1740,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
         if (payloadCommand === 'npc_list') {
            if (char.rpg.conversingNpcId) {
               char.rpg.conversingNpcId = null;
-              await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+              await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
            }
            const normLocId = (char.location === 'city' || char.location === 'city_1') ? 'loc_city_eldoria' : char.location;
            const loc = WORLD_LOCATIONS.find((l: any) => l.id === normLocId);
@@ -1750,7 +1782,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
            let msg = `💬 ${npc.name}: *${talkPrompts[Math.floor(Math.random() * talkPrompts.length)]}*\n\n(Вы можете ответить ему в чат, используя обычный текст!)`;
            
            char.rpg.conversingNpcId = npcId;
-           await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
            
            chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок подошел к NPC по имени ${npc.name} (${npc.description}). Если следующая реплика игрока направлена ему, отыграй роль NPC!` }] });
            
@@ -1798,12 +1830,12 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
            if (Math.random() < 0.7 + (pStats.attack / 1000)) {
                const reward = Math.floor(Math.random() * 50) + 10;
                char.gold += reward;
-               await setDoc(doc(db, 'characters', char.id), { gold: char.gold }, { merge: true });
+               await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold }, { merge: true });
                await context.send({ message: `👊 Вы ловким ударом отправили громилу в нокаут! Толпа радостно загудела. В его карманах вы нашли ${reward} 💰.`, keyboard: getCityKeyboard() });
            } else {
                const hpLoss = Math.floor(pStats.maxHp * 0.2);
                char.rpg.baseStats.hp = Math.max(1, char.rpg.baseStats.hp - hpLoss);
-               await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+               await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                await context.send({ message: `🤕 Громила оказался неожиданно проворным и вмазал вам кружкой по голове! Вы потеряли ${hpLoss} ХП и с позором отступили.`, keyboard: getCityKeyboard() });
            }
            return;
@@ -1815,7 +1847,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
              return;
           }
           char.gold -= 50;
-          await setDoc(doc(db, 'characters', char.id), { gold: char.gold }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold }, { merge: true });
           
           const rnd = Math.random() * 100;
           const kb = Keyboard.builder().textButton({ label: '⬅️ Вернуться', payload: { command: 'tavern_menu' }, color: Keyboard.PRIMARY_COLOR });
@@ -1823,18 +1855,18 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           if (rnd < 5) { // 5% chance behind bars
              const fine = Math.floor((char.gold || 0) * 0.1); // 10% of gold
              char.gold -= fine;
-             await setDoc(doc(db, 'characters', char.id), { gold: char.gold }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold }, { merge: true });
              await context.send({ message: `🚓 Вы напились до беспамятства и очнулись за решеткой! Стража содрала с вас штраф ${fine} 💰 за хулиганство.`, keyboard: kb });
           } else if (rnd < 10) { // 5% chance with hobos
              char.rpg.baseStats.hp = Math.max(1, Math.floor(calculateTotalStats(char.rpg).maxHp * 0.5));
-             await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
              await context.send({ message: `🗑️ Вы так сильно напились, что проснулись на улице в обнимку с бомжами. У вас жутко болит голова (потеряно 50% здоровья).`, keyboard: kb });
           } else if (rnd < 20) {
              await context.send({ message: `💃 После пятой кружки эля вы залезли на стол и начали исполнять зажигательные танцы. Посетители аплодировали!`, keyboard: kb });
           } else if (rnd < 30) {
              const tip = 20;
              char.gold += tip;
-             await setDoc(doc(db, 'characters', char.id), { gold: char.gold }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold }, { merge: true });
              await context.send({ message: `🎤 Вы так хорошо спели старую морскую песню пьяным голосом, что кто-то кинул вам ${tip} 💰.`, keyboard: kb });
           } else if (rnd < 40) {
              await context.send({ message: `🐐 Вы проснулись на сеновале за таверной. Рядом с вами мирно спит коза. Ничего не помните.`, keyboard: kb });
@@ -1878,10 +1910,10 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
 
           if (rnd <= winChance) {
              char.gold += 10000;
-             await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
              await context.send({ message: `💪 Вы сцепились руками с местным чемпионом. Спустя минуту напряженной борьбы, вы прижали его руку к столу!\n🎉 Вы выиграли 10000 💰!`, keyboard: kb });
           } else {
-             await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
              await context.send({ message: `💦 Вы боролись изо всех сил, но соперник оказался крепким орешком и прижал вашу руку. Вы проиграли ставку в 1000 💰.`, keyboard: kb });
           }
           return;
@@ -1895,7 +1927,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               return;
            }
            char.gold -= 10;
-           await setDoc(doc(db, 'characters', char.id), { gold: char.gold }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold }, { merge: true });
            await context.send({ message: 'Вы пожертвовали 10 💰. Бомж радостно поблагодарил вас и убежал. Ваша карма (наверное) стала чище.', keyboard: getCityKeyboard() });
            return;
         }
@@ -1916,7 +1948,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           char.rpg.baseStats.hp = maxHp;
           char.rpg.baseStats.mp = maxMp;
           
-          await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           
           await context.send({ message: '💤 Ты отлично отдохнул в таверне и полностью восстановил свои силы!', keyboard: getCityKeyboard() });
           return;
@@ -1943,7 +1975,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           char.rpg.locationDepth = 1;
           char.rpg.foundBoss = false;
           char.rpg.foundNextDepth = false;
-          await setDoc(doc(db, 'characters', char.id), { 
+          await safeSetDoc(doc(db, 'characters', char.id), { 
             rpg: JSON.parse(JSON.stringify(char.rpg)),
             actionEndTime: endTime,
             actionType: 'travel',
@@ -1992,7 +2024,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               const waitTime = Math.floor(Math.random() * 5 + 5) * 1000;
               char.rpg.exploreWaitEnd = Date.now() + waitTime;
               char.rpg.pendingExploreCmd = payloadCommand;
-              await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+              await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
               
               const kbWait = Keyboard.builder()
                 .textButton({ label: '⏳ Как успехи?', payload: { command: 'check_explore' }, color: Keyboard.PRIMARY_COLOR })
@@ -2016,12 +2048,12 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                         
                         if (rez.enemyToFight) {
                            freshChar.rpg.combat = { enemy: rez.enemyToFight, isDefending: false, playerCooldowns: {}, turnCounter: 1, playerShield: 0, enemyShield: 0, playerStatuses: [], enemyStatuses: [] };
-                           await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(freshChar.rpg)) }, { merge: true });
+                           await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(freshChar.rpg)) }, { merge: true });
                            await renderCombatUI(context, freshChar, `\n[СИСТЕМА]: ${rez.msg}`);
                            return;
                         }
                         
-                        await setDoc(doc(db, 'characters', char.id), { gold: freshChar.gold || 0, rpg: JSON.parse(JSON.stringify(freshChar.rpg)) }, { merge: true });
+                        await safeSetDoc(doc(db, 'characters', char.id), { gold: freshChar.gold || 0, rpg: JSON.parse(JSON.stringify(freshChar.rpg)) }, { merge: true });
                         await context.send({ message: `\n[СИСТЕМА]: ${rez.msg}`, keyboard: getWildKeyboard(freshChar) });
                      }
                  } catch (e) {
@@ -2054,7 +2086,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
         if (charDoc.exists()) {
              const charData = charDoc.data() as any;
              charData.rpg.inventory.push({ itemId: 'item_creator_stone', amount: 1 });
-             await setDoc(doc(db, 'characters', String(context.senderId)), charData);
+             await safeSetDoc(doc(db, 'characters', String(context.senderId)), charData);
              
              await context.send({ message: '🎉 Поздравляем! Вы первый, кто нажал кнопку, и получили Камень Создания!' });
         }
@@ -2066,7 +2098,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 const enemy = char.rpg.exploreEnemy;
                 char.rpg.exploreEnemy = null;
                 char.rpg.combat = { enemy, isDefending: false };
-                await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                 await renderCombatUI(context, char, `💥 Вы бросаетесь в атаку!`);
                 return;
              } else if (payloadCommand === 'explore_stealth') {
@@ -2079,16 +2111,16 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                    char.rpg.exploreEnemy = null;
                    char.rpg.combat = { enemy, isDefending: false };
                    await context.send({ message: '❗ Враг вас заметил! Бой начинается не в вашу пользу.'});
-                   await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                   await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                    await renderCombatUI(context, char, '');
                    return;
                 }
-                await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                 return;
              } else if (payloadCommand === 'explore_flee') {
                 char.rpg.exploreState = null;
                 char.rpg.exploreEnemy = null;
-                await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                 await context.send({ message: '🏃 Вы решили отступить и пойти другой дорогой.', keyboard: getWildKeyboard(char) });
                 return;
              }
@@ -2110,7 +2142,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
              } else {
                 await context.send({ message: '🚶 Вы решили не рисковать и пойти длинным безопасным путем.', keyboard: getWildKeyboard(char) });
              }
-             await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
              return;
           }
           
@@ -2128,7 +2160,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 if (ex) ex.amount += potCount;
                 else char.rpg.inventory.push({ itemId: potId, amount: potCount });
                 
-                await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                 await context.send({ message: `💧 Вы попили воды: ваше ХП полностью восстановлено! Вы также набрали воду в ${potCount} пустых пузырька (Малое зелье здоровья).`, keyboard: getWildKeyboard(char) });
                 return;
              }
@@ -2165,7 +2197,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                     }
                     
                     char.rpg.exploreMerchantItems = merchantItems;
-                    await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                    await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                 }
                 
                 let msg = `🛒 Странствующий торговец\n"Смотри, что у меня есть, путник!"\nТвое золото: ${char.gold || 0} 💰\n\n`;
@@ -2190,7 +2222,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
              } else {
                 char.rpg.exploreState = null;
                 delete char.rpg.exploreMerchantItems;
-                await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                 await context.send({ message: 'Вы молча уходите.', keyboard: getWildKeyboard(char) });
                 return;
              }
@@ -2219,7 +2251,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 
                 char.rpg.conversingNpcId = npc.id;
                 char.rpg.tempNpc = npc; // Save temp npc data
-                await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                 
                 chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок встретил в диких землях NPC по имени ${npc.name} (${npc.description}). Начни отыгрыш сразу с приветствия.` }] });
                 
@@ -2230,7 +2262,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 return;
              } else {
                 char.rpg.exploreState = null;
-                await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                 await context.send({ message: 'Вы вернулись на тропу и продолжили путь.', keyboard: getWildKeyboard(char) });
                 return;
              }
@@ -2241,7 +2273,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 const now = new Date();
                 const endTime = now.getTime() + 5 * 60000;
                 
-                await setDoc(doc(db, 'characters', char.id), { 
+                await safeSetDoc(doc(db, 'characters', char.id), { 
                   rpg: JSON.parse(JSON.stringify(char.rpg)),
                   actionEndTime: endTime,
                   actionType: 'ore_cave',
@@ -2253,7 +2285,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 return;
              } else {
                 char.rpg.exploreState = null;
-                await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                 await context.send({ message: 'Вы прошли мимо пещеры.', keyboard: getWildKeyboard(char) });
                 return;
              }
@@ -2263,7 +2295,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
              char.rpg.exploreState = null;
              char.rpg.foundNextDepth = false;
              char.rpg.dynamicPaths = [];
-             await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
              await context.send({ message: 'Вы решили забыть этот путь и остались на текущем уровне.', keyboard: getWildKeyboard(char) });
              return;
           }
@@ -2272,7 +2304,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
              char.rpg.exploreState = null;
              char.rpg.foundBoss = false;
              char.rpg.dynamicPaths = [];
-             await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
              await context.send({ message: 'Вы незаметно отступили, оставив логово Владыки позади. Придется искать его заново.', keyboard: getWildKeyboard(char) });
              return;
           }
@@ -2282,12 +2314,12 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           if (rez.enemyToFight) {
              chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Во время исследования локации на игрока напал ${rez.enemyToFight.name}!` }] });
              char.rpg.combat = { enemy: rez.enemyToFight, isDefending: false, playerCooldowns: {}, turnCounter: 1, playerShield: 0, enemyShield: 0, playerStatuses: [], enemyStatuses: [] };
-             await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+             await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
              await renderCombatUI(context, char, rez.msg);
              return;
           }
           
-          await setDoc(doc(db, 'characters', char.id), { gold: char.gold || 0, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold || 0, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           await context.send({ message: rez.msg, keyboard: getWildKeyboard(char) });
           return;
         }
@@ -2313,7 +2345,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
            }
            char.rpg.foundNextDepth = false;
            char.rpg.locationDepth = (char.rpg.locationDepth || 1) + 1;
-           await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
            await context.send({ message: `🌌 Вы спустились на уровень ${char.rpg.locationDepth}. Атмосфера стала тяжелее.`, keyboard: getWildKeyboard(char) });
            return;
         }
@@ -2363,7 +2395,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
            
            char.rpg.foundBoss = false;
            char.rpg.combat = { enemy, isDefending: false, playerCooldowns: {}, turnCounter: 1, playerShield: 0, enemyShield: 0, playerStatuses: [], enemyStatuses: [] };
-           await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
            await renderCombatUI(context, char, `☠️ Вы входите в логово. ${enemy.name} обращает на вас свой яростный взор! Бой начинается!`);
            return;
         }
@@ -2447,7 +2479,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               });
             }
             guildBoard.lastRefresh = nowMs;
-            await setDoc(doc(db, 'sessions', 'guild_quests'), guildBoard, { merge: true });
+            await safeSetDoc(doc(db, 'sessions', 'guild_quests'), guildBoard, { merge: true });
           }
 
           let compQ = char.rpg.completedQuests || [];
@@ -2493,7 +2525,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           }
           
           char.rpg.activeQuest = Object.assign({}, q);
-          await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           
           await context.send({
              message: `Вы приняли задание: ${q.title}.\nОтправляйтесь в путь и уничтожьте цель!`,
@@ -2521,7 +2553,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 charData.rpg.deathState = 'alive';
                 charData.actionType = null;
                 charData.actionEndTime = null;
-                await setDoc(doc(db, 'characters', charDoc.id), charData, { merge: true });
+                await safeSetDoc(doc(db, 'characters', charDoc.id), charData, { merge: true });
                 await context.send("✨ Каин воскрешен. БОГ ВЫКЛЮЧЕН.");
             } else {
                 await context.send("Каин не найден.");
@@ -2540,7 +2572,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 charData.rpg.deathState = 'alive';
                 charData.actionType = null;
                 charData.actionEndTime = null;
-                await setDoc(doc(db, 'characters', charDoc.id), charData, { merge: true });
+                await safeSetDoc(doc(db, 'characters', charDoc.id), charData, { merge: true });
                 await context.send("✨ Каин воскрешен. БОГ ВЫКЛЮЧЕН.");
             }
         }
@@ -2556,7 +2588,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
              const partyDoc = await getDoc(doc(db, 'parties', char.rpg.partyId));
              if (!partyDoc.exists()) {
                 char.rpg.partyId = null;
-                await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                 await context.send('Ваша группа была распущена.');
                 return;
              }
@@ -2593,7 +2625,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                  char.rpg.deathState = 'dead';
                  char.actionType = 'dead';
                  char.actionEndTime = Date.now() + 3600 * 1000;
-                 await setDoc(doc(db, 'characters', char.id), { 
+                 await safeSetDoc(doc(db, 'characters', char.id), { 
                      rpg: JSON.parse(JSON.stringify(char.rpg)), 
                      actionEndTime: char.actionEndTime,
                      actionType: char.actionType 
@@ -2616,11 +2648,11 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               return;
            }
            const pid = 'party_' + Date.now() + '_' + Math.floor(Math.random()*1000);
-           await setDoc(doc(db, 'parties', pid), {
+           await safeSetDoc(doc(db, 'parties', pid), {
               id: pid, leaderId: char.id, members: [char.id]
            });
            char.rpg.partyId = pid;
-           await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
            
            const kb = Keyboard.builder().textButton({ label: '📋 Группа', payload: { command: 'party' }, color: Keyboard.PRIMARY_COLOR });
            await context.send({ message: 'Группа успешно создана!', keyboard: kb });
@@ -2639,10 +2671,10 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               } else if (party.leaderId === char.id) {
                  party.leaderId = party.members[0];
               }
-              await setDoc(doc(db, 'parties', char.rpg.partyId), party, { merge: true });
+              await safeSetDoc(doc(db, 'parties', char.rpg.partyId), party, { merge: true });
            }
            char.rpg.partyId = null;
-           await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
            await context.send('Вы покинули группу.');
            return;
         }
@@ -2707,7 +2739,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
            targetUser.rpg.partyInvites[char.rpg.partyId] = {
               fromName: char.name, time: Date.now()
            };
-           await setDoc(doc(db, 'characters', targetId), { rpg: JSON.parse(JSON.stringify(targetUser.rpg)) }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', targetId), { rpg: JSON.parse(JSON.stringify(targetUser.rpg)) }, { merge: true });
            
            await context.send('Приглашение отправлено игроку ' + targetUser.name);
            
@@ -2730,7 +2762,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
            const partyId = payloadCommand.replace('party_decline_', '');
            if (char.rpg.partyInvites && char.rpg.partyInvites[partyId]) {
               delete char.rpg.partyInvites[partyId];
-              await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+              await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
            }
            await context.send('Вы отклонили приглашение.');
            return;
@@ -2759,11 +2791,11 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
            }
 
            party.members.push(char.id);
-           await setDoc(doc(db, 'parties', partyId), party, { merge: true });
+           await safeSetDoc(doc(db, 'parties', partyId), party, { merge: true });
            
            char.rpg.partyId = partyId;
            delete char.rpg.partyInvites[partyId];
-           await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
            
            await context.send('Вы успешно вступили в группу!');
            return;
@@ -2813,7 +2845,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
         if (payloadCommand?.startsWith('party_trade_gold_')) {
            const targetId = payloadCommand.replace('party_trade_gold_', '');
            char.rpg.pendingTradeGoldTo = targetId;
-           await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
            const kb = Keyboard.builder()
              .textButton({ label: '❌ Отмена', payload: { command: 'party_trade_gold_cancel' }, color: Keyboard.NEGATIVE_COLOR });
            
@@ -2824,7 +2856,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
         if (payloadCommand === 'party_trade_gold_cancel') {
            if (char.rpg.pendingTradeGoldTo) {
               char.rpg.pendingTradeGoldTo = null;
-              await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+              await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
               await context.send('Передача золота отменена.');
            }
            return;
@@ -2857,14 +2889,14 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
            } else {
              char.rpg.inventory.splice(invIndex, 1);
            }
-           await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
            
            if (targetInvItem) {
              targetInvItem.amount += 1;
            } else {
              targetChar.rpg.inventory.push({ itemId, amount: 1 });
            }
-           await setDoc(doc(db, 'characters', targetId), { rpg: JSON.parse(JSON.stringify(targetChar.rpg)) }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', targetId), { rpg: JSON.parse(JSON.stringify(targetChar.rpg)) }, { merge: true });
            
            const itemDef = getItem(itemId);
            const itemName = itemDef ? itemDef.name : itemId;
@@ -2930,7 +2962,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
            }
 
            party.members = party.members.filter((id: string) => id !== targetId);
-           await setDoc(doc(db, 'parties', char.rpg.partyId), party, { merge: true });
+           await safeSetDoc(doc(db, 'parties', char.rpg.partyId), party, { merge: true });
            
            // Update target user
            const memDoc = await getDoc(doc(db, 'characters', targetId));
@@ -2938,7 +2970,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
              const mData = memDoc.data();
              if (mData.rpg) {
                 mData.rpg.partyId = null;
-                await setDoc(doc(db, 'characters', targetId), { rpg: JSON.parse(JSON.stringify(mData.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', targetId), { rpg: JSON.parse(JSON.stringify(mData.rpg)) }, { merge: true });
              }
              await vk.api.messages.send({
                 peer_id: mData.ownerId,
@@ -2954,7 +2986,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
         if (payloadCommand?.startsWith('party_msg_menu_')) {
            const targetId = payloadCommand.replace('party_msg_menu_', '');
            char.rpg.pendingMessageTo = targetId;
-           await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
            
            const kb = Keyboard.builder().textButton({ label: '❌ Отмена', payload: { command: 'party_msg_cancel' }, color: Keyboard.NEGATIVE_COLOR });
            await context.send({ message: '⌨️ Напишите в чат ваше сообщение для отправки (или нажмите Отмена):', keyboard: kb });
@@ -2964,7 +2996,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
         if (payloadCommand === 'party_msg_cancel') {
            if (char.rpg.pendingMessageTo) {
               char.rpg.pendingMessageTo = null;
-              await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+              await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
               await context.send('Вы отменили отправку сообщения.');
            }
            return;
@@ -2988,7 +3020,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           // Set 5 min timer
           const endTime = now.getTime() + 5 * 60000;
           
-          await setDoc(doc(db, 'characters', char.id), { 
+          await safeSetDoc(doc(db, 'characters', char.id), { 
             rpg: JSON.parse(JSON.stringify(char.rpg)),
             actionEndTime: endTime,
             actionType: 'work',
@@ -3109,7 +3141,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           // Let's use 'forest' internally but maybe store char.rpg.currentBiome
           (char.rpg as any).currentBiome = areaId;
 
-          await setDoc(doc(db, 'characters', char.id), { 
+          await safeSetDoc(doc(db, 'characters', char.id), { 
             rpg: JSON.parse(JSON.stringify(char.rpg)),
             actionEndTime: endTime,
             actionType: 'travel',
@@ -3187,7 +3219,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               }
             }
 
-            await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+            await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
             
             chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок написал "Искать монстров" и нашел сундук. Результат: ${eventMsg}` }] });
             userLocks.delete(senderId);
@@ -3286,13 +3318,13 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                msg += `\n🎉 Поздравляем! Вы достигли ${char.rpg.level} уровня!`;
             }
             char.rpg.combat = null;
-            await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+            await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
             
             const kbWild = getWildKeyboard(char);
             await context.send({ message: msg, keyboard: kbWild });
           } else if (result.ended && !result.won && !result.fled) {
             char.rpg.combat = null;
-            await setDoc(doc(db, 'characters', char.id), { 
+            await safeSetDoc(doc(db, 'characters', char.id), { 
               isDead: true,
               deathTime: Date.now(),
               rpg: JSON.parse(JSON.stringify(char.rpg)) 
@@ -3301,7 +3333,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок погиб в бою с ${enemy.name}.` }] });
             await context.send({ message: `🌲 Вы находите врага (${enemy.name}) и нападаете...\n\n${result.log}\n\n💀 Вы погибли!`, keyboard: Keyboard.builder().textButton({ label: 'Меню', payload: { command: 'menu' }, color: Keyboard.SECONDARY_COLOR }) });
           } else {
-            await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+            await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
             chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок нашел врага: ${enemy.name} и сразу пошел в атаку. Бой начался.` }] });
             await renderCombatUI(context, char, `🌲 Вы находите врага (${enemy.name}) и с ходу наносите удар!\n\n${result.log}`);
           }
@@ -3322,7 +3354,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           if (!shopData[cat] || shopData[cat].length === 0 || (now.getTime() - lastRefresh.getTime() > threeHours)) {
             shopData[cat] = generateShopItems(cat, 20, char.rpg?.level || 1, char.charClass);
             shopData.lastRefresh = now.toISOString();
-            await setDoc(doc(db, 'sessions', `shop_${char.id}`), shopData, { merge: true });
+            await safeSetDoc(doc(db, 'sessions', `shop_${char.id}`), shopData, { merge: true });
           }
           
           const currentItemsIds = shopData[cat];
@@ -3365,12 +3397,12 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             return;
           }
           char.gold -= 50;
-          await setDoc(doc(db, 'characters', char.id), { gold: char.gold }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold }, { merge: true });
           
           let shopDoc = await getDoc(doc(db, 'sessions', `shop_${char.id}`));
           let shopData = shopDoc.exists() ? shopDoc.data() : {};
           shopData[cat] = generateShopItems(cat, 20, char.rpg?.level || 1, char.charClass);
-          await setDoc(doc(db, 'sessions', `shop_${char.id}`), shopData, { merge: true });
+          await safeSetDoc(doc(db, 'sessions', `shop_${char.id}`), shopData, { merge: true });
           
           await context.send('🔄 Ассортимент обновлен! Нажмите кнопку категории еще раз, чтобы увидеть новые товары.');
           return;
@@ -3554,7 +3586,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
              }
           }
 
-          await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           
           const keyboard = Keyboard.builder()
             .textButton({ label: '🔙 Вернуться к кузнецу', payload: { command: 'blacksmith' }, color: Keyboard.PRIMARY_COLOR })
@@ -3654,7 +3686,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             char.rpg.inventory.splice(invIndex, 1);
           }
 
-          await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           
           const keyboard = Keyboard.builder()
             .textButton({ label: '🔙 Вернуться к продаже', payload: { command: 'shop_sell_menu' }, color: Keyboard.PRIMARY_COLOR })
@@ -3683,7 +3715,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             char.rpg.inventory.splice(invIndex, 1);
           }
 
-          await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           
           const keyboard = Keyboard.builder()
             .textButton({ label: '🔙 Вернуться к продаже', payload: { command: 'shop_sell_menu' }, color: Keyboard.PRIMARY_COLOR })
@@ -4035,7 +4067,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               char.rpg.inventory[newInvIndex].itemId = newItemId;
            }
 
-           await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
 
            await context.send({
              message: `✨ Вы успешно вставили ${gem.name} в элемент экипировки!`,
@@ -4237,7 +4269,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           } else {
             arr.push(skillId);
             char.rpg.equippedSkills[type as 'active' | 'passive'] = arr;
-            await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+            await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
             
             const keyboard = Keyboard.builder()
               .textButton({ label: '🔙 К списку', payload: { command: `skills_cat_${type}`, page }, color: Keyboard.PRIMARY_COLOR })
@@ -4251,7 +4283,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           const { skillId, type, page } = context.messagePayload;
           if (!char.rpg.equippedSkills) char.rpg.equippedSkills = { active: [], passive: [] };
           char.rpg.equippedSkills[type as 'active' | 'passive'] = (char.rpg.equippedSkills[type as 'active' | 'passive'] || []).filter((id: string) => id !== skillId);
-          await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           
           const keyboard = Keyboard.builder()
             .textButton({ label: '🔙 К списку', payload: { command: `skills_cat_${type}`, page }, color: Keyboard.PRIMARY_COLOR })
@@ -4315,7 +4347,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                  if (tokens >= 5) {
                     char.rpg.arenaTokens -= 5;
                     char.gold = (char.gold || 0) + 1000;
-                    await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                    await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                     await context.send({ message: `✅ Вы обменяли 5 токенов на 1000 💰!` });
                  } else {
                     await context.send({ message: `❌ Недостаточно токенов (нужно 5).` });
@@ -4351,7 +4383,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                        if (!char.rpg.inventory) char.rpg.inventory = [];
                        char.rpg.inventory.push({ itemId: JSON.stringify(giveItemBase), amount: 1, inline: true });
                        
-                       await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                       await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                        await context.send({ message: `✅ Вы купили ${tItem.name} за ${tItem.cost} токенов!` });
                     } else {
                        await context.send({ message: `❌ Недостаточно токенов (нужно ${tItem.cost}).` });
@@ -4431,7 +4463,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               isDefending: false,
               type: 'arena'
             };
-            await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+            await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           }
           await renderCombatUI(context, char, `🎺 Зрители ликуют! Вы вышли на арену против: ${char.rpg.combat.enemy.name}!`);
           return;
@@ -4455,13 +4487,35 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               enemy: generateEnemy(char.rpg.level),
               isDefending: false
             };
-            await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+            await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           }
           await renderCombatUI(context, char, 'Вы отправились на охоту и встретили врага!');
           return;
         }
 
-        if (payloadCommand === 'combat_skills_menu') {
+        if (!payloadCommand && activeChar && activeChar.rpg?.combat) {
+        if (text === '⚔️ атака' || text === 'атака') {
+            payloadCommand = 'combat_action';
+            payloadAction = undefined;
+            if (!context.messagePayload) (context as any).messagePayload = {};
+            (context as any).messagePayload.combatAction = 'attack';
+        } else if (text === '🛡️ защита' || text === 'защита') {
+            payloadCommand = 'combat_action';
+            payloadAction = undefined;
+            if (!context.messagePayload) (context as any).messagePayload = {};
+            (context as any).messagePayload.combatAction = 'defend';
+        } else if (text === '🏃 побег' || text === 'побег') {
+            payloadCommand = 'combat_action';
+            payloadAction = undefined;
+            if (!context.messagePayload) (context as any).messagePayload = {};
+            (context as any).messagePayload.combatAction = 'flee';
+        } else if (text === '✨ навыки' || text === 'навыки') {
+            payloadCommand = 'combat_skills_menu';
+            payloadAction = undefined;
+        }
+    }
+
+    if (payloadCommand === 'combat_skills_menu') {
           if (!char.rpg || !char.rpg.combat) return;
           const keyboard = Keyboard.builder();
           const activeSkills = char.rpg.equippedSkills?.active || [];
@@ -4566,7 +4620,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             }
 
             if (leveledUp) msg += `\n🌟 УРОВЕНЬ ПОВЫШЕН! Теперь вы ${char.rpg.level} уровня!`;
-            await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+            await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
             
             let kbBuilder = Keyboard.builder();
             if ((result as any).combatType === 'arena') {
@@ -4583,7 +4637,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             });
             return;
           } else if (result.ended) {
-            await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+            await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
             
             let kb = Keyboard.builder().textButton({ label: '🔙 В меню', payload: { command: 'menu' }, color: Keyboard.PRIMARY_COLOR });
             if (char.rpg.deathState === 'waiting_revive') {
@@ -4614,7 +4668,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             });
             return;
           } else {
-            await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+            await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
             await renderCombatUI(context, char, result.log);
             return;
           }
@@ -4811,7 +4865,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               newRpgData.equippedSkills = { active: equippedActive, passive: equippedPassive };
               newRpgData.unlockedSkills = unlockedSkills;
 
-              await setDoc(doc(db, 'characters', charId), {
+              await safeSetDoc(doc(db, 'characters', charId), {
                 ...charData,
                 level: 1,
                 rpg: newRpgData,
@@ -4856,7 +4910,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 const tSnap = await getDoc(doc(db, 'characters', activeChar.rpg.pendingMessageTo));
                 const targetId = activeChar.rpg.pendingMessageTo;
                 activeChar.rpg.pendingMessageTo = null;
-                await setDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
                 
                 if (tSnap.exists()) {
                     const tData = tSnap.data();
@@ -4872,7 +4926,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 return; // message handled, early return
             } else if (activeChar.rpg && activeChar.rpg.pendingMessageTo && text === 'отмена') {
                 activeChar.rpg.pendingMessageTo = null;
-                await setDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
                 await context.send('Отправка сообщения отменена.');
                 return;
             }
@@ -4881,7 +4935,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             if (activeChar.rpg && activeChar.rpg.pendingTradeGoldTo && text !== 'отмена') {
                 const targetId = activeChar.rpg.pendingTradeGoldTo;
                 activeChar.rpg.pendingTradeGoldTo = null;
-                await setDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
                 
                 let amount = parseInt(text);
                 if (text.toLowerCase() === 'всё' || text.toLowerCase() === 'все') {
@@ -4902,10 +4956,10 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 if (tSnap.exists()) {
                     const targetChar = tSnap.data();
                     activeChar.gold -= amount;
-                    await setDoc(doc(db, 'characters', activeChar.id), { gold: activeChar.gold }, { merge: true });
+                    await safeSetDoc(doc(db, 'characters', activeChar.id), { gold: activeChar.gold }, { merge: true });
                     
                     targetChar.gold = (targetChar.gold || 0) + amount;
-                    await setDoc(doc(db, 'characters', targetId), { gold: targetChar.gold }, { merge: true });
+                    await safeSetDoc(doc(db, 'characters', targetId), { gold: targetChar.gold }, { merge: true });
                     
                     await context.send(`Вы успешно передали ${amount} 💰 игроку ${targetChar.name}!`);
                     
@@ -4920,7 +4974,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 return;
             } else if (activeChar.rpg && activeChar.rpg.pendingTradeGoldTo && text === 'отмена') {
                 activeChar.rpg.pendingTradeGoldTo = null;
-                await setDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
                 await context.send('Передача золота отменена.');
                 return;
             }
@@ -4968,7 +5022,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
         }
 
         if (result.success) {
-          await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
         }
         await context.send(result.message);
       } catch (e) {
@@ -4991,7 +5045,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           players.clear();
           chatHistory = [];
           currentPlot = "Трое искателей приключений сидят за дальним столиком в полутемной таверне 'Хромой Гоблин' на окраине Элдории. На улице льет проливной дождь. К ним подсаживается загадочный старец в капюшоне, кладет на стол туго набитый кошель с золотом и старую, потрепанную карту, после чего хрипло произносит: 'Мне сказали, вы лучшие. Дело опасное, но награда того стоит...'";
-          await setDoc(doc(db, 'sessions', 'active'), {
+          await safeSetDoc(doc(db, 'sessions', 'active'), {
             isActive: true,
             plotSummary: currentPlot,
             players: Array.from(players),
@@ -5013,7 +5067,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
         } else {
           isGameActive = false;
           chatHistory = [];
-          await setDoc(doc(db, 'sessions', 'active'), {
+          await safeSetDoc(doc(db, 'sessions', 'active'), {
             isActive: false,
             plotSummary: currentPlot,
             players: Array.from(players),
@@ -5032,7 +5086,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
       if (text === 'я играю') {
         if (!players.has(senderId)) {
           players.add(senderId);
-          await setDoc(doc(db, 'sessions', 'active'), {
+          await safeSetDoc(doc(db, 'sessions', 'active'), {
             isActive: true,
             plotSummary: currentPlot,
             players: Array.from(players),
@@ -5336,7 +5390,7 @@ ${npcsText}
                 }
               }
 
-              await setDoc(doc(db, 'characters', activeCharDocId), updates, { merge: true });
+              await safeSetDoc(doc(db, 'characters', activeCharDocId), updates, { merge: true });
               reply = reply.replace(/\[UPDATE_CHAR\]\s*(\{[\s\S]*?\})\s*(\[\/UPDATE_CHAR\]|\[\/\/UPDATE_CHAR\])/i, '').trim();
               reply += xpMessage;
             } catch (e) {
@@ -5349,7 +5403,7 @@ ${npcsText}
           if (plotMatch) {
             currentPlot = plotMatch[1];
             reply = reply.replace(/СЮЖЕТ:\s*(.*)/i, '').trim();
-            await setDoc(doc(db, 'sessions', 'active'), {
+            await safeSetDoc(doc(db, 'sessions', 'active'), {
               isActive: true,
               plotSummary: currentPlot,
               players: Array.from(players),
@@ -5373,7 +5427,7 @@ ${npcsText}
             
             const endTime = Date.now() + minutes * 60000;
             
-            await setDoc(doc(db, 'characters', activeCharDocId), { 
+            await safeSetDoc(doc(db, 'characters', activeCharDocId), { 
               actionEndTime: endTime,
               actionType: 'ai_timer',
               actionMessage: message,
@@ -5399,7 +5453,7 @@ ${npcsText}
               if (charData.rpg) {
                 charData.rpg.prisonEndTime = Date.now() + minutes * 60000;
                 charData.rpg.prisonEscapeAttempted = false;
-                await setDoc(doc(db, 'characters', activeCharDocId), { rpg: JSON.parse(JSON.stringify(charData.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', activeCharDocId), { rpg: JSON.parse(JSON.stringify(charData.rpg)) }, { merge: true });
                 chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок ${charData.name} посажен в тюрьму на ${minutes} минут.` }] });
               }
             }
@@ -5418,7 +5472,7 @@ ${npcsText}
               if (charData.rpg) {
                 charData.rpg.deathState = 'waiting_revive';
                 charData.rpg.deathEndTime = Date.now() + 10 * 60000; // 10 minutes to wait for revive
-                await setDoc(doc(db, 'characters', activeCharDocId), { rpg: JSON.parse(JSON.stringify(charData.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', activeCharDocId), { rpg: JSON.parse(JSON.stringify(charData.rpg)) }, { merge: true });
                 chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок ${charData.name} получил смертельный урон и ждет воскрешения.` }] });
               }
             }
@@ -5441,7 +5495,7 @@ ${npcsText}
                 cData.rpg.deathState = 'alive';
                 cData.rpg.deathEndTime = null;
                 cData.rpg.baseStats.hp = calculateTotalStats(cData.rpg).maxHp;
-                await setDoc(doc(db, 'characters', d.id), { rpg: JSON.parse(JSON.stringify(cData.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', d.id), { rpg: JSON.parse(JSON.stringify(cData.rpg)) }, { merge: true });
                 
                 // Notify revived player
                 if (vk) {
@@ -5556,7 +5610,7 @@ ${npcsText}
                   enemy: npcEnemy,
                   isDefending: false
                 };
-                await setDoc(doc(db, 'characters', activeCharDocId), { rpg: JSON.parse(JSON.stringify(charData.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', activeCharDocId), { rpg: JSON.parse(JSON.stringify(charData.rpg)) }, { merge: true });
               }
               await renderCombatUI(context, { id: activeCharDocId, ...charData } as any, 'NPC нападает на вас!');
             }
@@ -5572,7 +5626,7 @@ ${npcsText}
                   enemy: generateEnemy(charData.rpg.level, soloCombatMonsterName),
                   isDefending: false
                 };
-                await setDoc(doc(db, 'characters', activeCharDocId), { rpg: JSON.parse(JSON.stringify(charData.rpg)) }, { merge: true });
+                await safeSetDoc(doc(db, 'characters', activeCharDocId), { rpg: JSON.parse(JSON.stringify(charData.rpg)) }, { merge: true });
               }
               await renderCombatUI(context, { id: activeCharDocId, ...charData } as any, 'Вы отправились на охоту и встретили врага!');
             }
@@ -5691,7 +5745,7 @@ ${npcsText}
           activeChar.rpg.baseStats.hp = 0;
           activeChar.rpg.deathState = 'waiting_revive';
           activeChar.rpg.deathEndTime = Date.now() + 10 * 60000; // 10 mins
-          await setDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', activeChar.id), { rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
           chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок ${activeChar.name} погиб в групповом бою.` }] });
         }
         await vk!.api.messages.send({ peer_id: pid, random_id: Date.now(), message: combat.combatLog + '\n\n☠️ Ваша группа была повержена... Вы тяжело ранены и истекаете кровью.' });
@@ -5741,7 +5795,7 @@ ${npcsText}
              chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Игрок ${activeChar.name} победил в групповом бою.` }] });
           }
           
-          await setDoc(doc(db, 'characters', activeChar.id), { gold: activeChar.gold, rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
+          await safeSetDoc(doc(db, 'characters', activeChar.id), { gold: activeChar.gold, rpg: JSON.parse(JSON.stringify(activeChar.rpg)) }, { merge: true });
           
           await vk!.api.messages.send({ peer_id: pid, random_id: Date.now(), message: winMsg });
         }
@@ -5828,7 +5882,8 @@ ${npcsText}
 
   const startPolling = async (retries = 5) => {
     try {
-      await vk.updates.start();
+      // await vk.updates.start();
+
       console.log('VK Bot polling started');
       addLog('Бот запущен и подключен к ВКонтакте');
     } catch (e) {
@@ -5902,15 +5957,19 @@ setInterval(async () => {
           }
           
           char.actionNotified = true;
-          await setDoc(doc(db, 'characters', char.id), { 
-            gold: char.gold || 0, 
-            location: char.location,
-            actionNotified: true,
-            actionEndTime: null,
-            actionType: null,
-            actionMessage: null,
-            actionTargetLocation: null
-          }, { merge: true });
+          try {
+            await safeSetDoc(doc(db, 'characters', char.id), { 
+              gold: char.gold || 0, 
+              location: char.location,
+              actionNotified: true,
+              actionEndTime: null,
+              actionType: null,
+              actionMessage: null,
+              actionTargetLocation: null
+            }, { merge: true });
+          } catch (e: any) {
+             console.error('ERROR WRITING TO', char.id, e.message);
+          }
           
           let kb = undefined;
           if (char.location === 'city') {
@@ -5931,7 +5990,7 @@ setInterval(async () => {
         if (char.rpg?.deathState === 'waiting_revive' && char.rpg.deathEndTime && char.rpg.deathEndTime <= now) {
            char.rpg.deathState = 'dead';
            char.rpg.deathEndTime = now + 60 * 60000; // 1 hour
-           await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+           await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
            await vk.api.messages.send({
              peer_id: char.ownerId,
              random_id: Date.now(),
@@ -5942,7 +6001,7 @@ setInterval(async () => {
            char.rpg.deathEndTime = null;
            char.rpg.baseStats.hp = calculateTotalStats(char.rpg).maxHp;
            char.location = 'city_1';
-           await setDoc(doc(db, 'characters', char.id), { 
+           await safeSetDoc(doc(db, 'characters', char.id), { 
               rpg: JSON.parse(JSON.stringify(char.rpg)),
               location: 'city_1'
            }, { merge: true });
@@ -5963,12 +6022,12 @@ const upload = multer({ dest: 'uploads/' });
 
 app.post('/api/upload-city-image', upload.single('image'), (req, res) => {
   console.log('Received upload request');
-  if (!req.file) {
+  if (!(req as any).file) {
     console.log('No file in request');
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  console.log('File received:', req.file);
-  const oldPath = req.file.path;
+  console.log('File received:', (req as any).file);
+  const oldPath = (req as any).file.path;
   const newPath = path.join(process.cwd(), 'data', 'images', 'eldoria.jpg');
   console.log('Moving file from', oldPath, 'to', newPath);
   try {
@@ -5990,7 +6049,7 @@ app.post('/api/upload-city-image', upload.single('image'), (req, res) => {
 
 app.post('/api/settings', async (req, res) => {
   try {
-    await setDoc(doc(db, 'settings', 'global'), req.body);
+    await safeSetDoc(doc(db, 'settings', 'global'), req.body);
     // Restart bot with new settings
     if (vk) {
       await vk.updates.stop();
@@ -6026,7 +6085,7 @@ app.put('/api/characters/:id', async (req, res) => {
     const { id } = req.params;
     const data = req.body;
     delete data.id;
-    await setDoc(doc(db, 'characters', id), data, { merge: true });
+    await safeSetDoc(doc(db, 'characters', id), data, { merge: true });
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -6164,7 +6223,7 @@ app.post('/api/god/give-item', async (req, res) => {
       char.rpg.inventory.push({ itemId, amount: 1 });
     }
     
-    await setDoc(doc(db, 'characters', charId), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+    await safeSetDoc(doc(db, 'characters', charId), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -6175,7 +6234,7 @@ app.post('/api/god/plot', async (req, res) => {
   try {
     const { plot } = req.body;
     currentPlot = plot;
-    await setDoc(doc(db, 'sessions', 'active'), { plotSummary: plot }, { merge: true });
+    await safeSetDoc(doc(db, 'sessions', 'active'), { plotSummary: plot }, { merge: true });
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -6204,7 +6263,7 @@ app.put('/api/god/character/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
-    await setDoc(doc(db, 'characters', id), updates, { merge: true });
+    await safeSetDoc(doc(db, 'characters', id), updates, { merge: true });
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -6241,7 +6300,7 @@ app.post('/api/npcs', async (req, res) => {
   if (!db) return res.status(500).json({ error: 'DB not initialized' });
   try {
     const npc = req.body;
-    await setDoc(doc(db, 'npcs', npc.id), npc, { merge: true });
+    await safeSetDoc(doc(db, 'npcs', npc.id), npc, { merge: true });
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -6291,21 +6350,6 @@ app.post('/api/clean-story', async (req, res) => {
 // Vite middleware for development
 import { createServer as createViteServer } from 'vite';
 async function startServer() {
-  // Setup API routes before Vite middleware
-  app.get('/api/status', (req, res) => {
-    if (!publicUrl && req.headers['x-forwarded-host']) {
-      publicUrl = `https://${req.headers['x-forwarded-host']}`;
-      console.log('Captured public URL for self-ping:', publicUrl);
-    }
-    console.log('API /api/status called');
-    res.json({
-      isGameActive,
-      playersCount: players.size,
-      logs: logs,
-      currentPlot
-    });
-  });
-
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

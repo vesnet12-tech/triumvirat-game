@@ -37,7 +37,7 @@ let expText = fs.readFileSync('exploration.ts', 'utf8');
 if (!expText.includes('trapDodge')) {
     const r1 = `if (Math.random() < 0.5) {`;
     const r1New = `const stats = char.rpg.baseStats; // BaseStats actually doesn't have it, we need calculateTotalStats
-       const rStats = require('./rpg.js').calculateTotalStats(char.rpg);
+       const rStats = calculateTotalStats(char.rpg);
        const tDodge = rStats.trapDodge || 0;
        if (Math.random() * 100 < 50 + tDodge) {`;
     expText = expText.replace(r1, r1New);
@@ -51,7 +51,7 @@ if (!combatText.includes('combatDodge')) {
     const hitCNew = `let extraDodge = 0;
   if (!isPlayer && attacker.isBoss) {} // Boss doesn't have passives yet
   if (!isPlayer) {
-     const pStats = require('./rpg.js').calculateTotalStats(char.rpg);
+     const pStats = calculateTotalStats(char.rpg);
      extraDodge = pStats.combatDodge || 0;
   }
   let hitChance = 85 + Math.floor(attacker.agility / 2) - Math.floor(defender.agility / 2) - blindMod - extraDodge;`;
@@ -62,7 +62,7 @@ if (!combatText.includes('combatDodge')) {
     const dmgCNew = `logRef.msg += \`💥 \${attackerName} наносит критический урон!\\n\`;
   }
   if (isPlayer) {
-     const pStats = require('./rpg.js').calculateTotalStats(char.rpg);
+     const pStats = calculateTotalStats(char.rpg);
      if (pStats.bonusDmgPct) {
          damage = Math.floor(damage * (1 + pStats.bonusDmgPct / 100));
      }
