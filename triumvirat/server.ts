@@ -729,6 +729,53 @@ async function initBot() {
           return;
         }
 
+        if (payloadAction === 'buy_merchant') {
+          const item = getItem(payloadItemId);
+          if (!item) return;
+
+          const customPrice = context.messagePayload.price || item.price;
+
+          if ((char.gold || 0) < customPrice) {
+            await context.send(`❌ Недостаточно золота! Нужно ${customPrice} 💰, а у тебя ${char.gold || 0} 💰.`);
+            return;
+          }
+
+          char.gold = (char.gold || 0) - customPrice;
+          const existing = char.rpg.inventory.find((i: any) => i.itemId === payloadItemId);
+          if (existing) {
+            existing.amount += 1;
+          } else {
+            if (char.rpg.inventory.length >= 30) {
+              await context.send(`❌ Инвентарь полон! Максимум 30 разных предметов.`);
+              return;
+            }
+            char.rpg.inventory.push({ itemId: payloadItemId, amount: 1 });
+          }
+
+          // Generate merchant keyboard again to let player buy more
+          let msg = `🛒 Странствующий торговец\n"Смотри, что у меня есть, путник!"\nТвое золото: ${char.gold || 0} 💰\n\n`;
+          const keyboard = Keyboard.builder();
+          
+          if (char.rpg.exploreMerchantItems) {
+            char.rpg.exploreMerchantItems.forEach((itemIdStr: string, index: number) => {
+               const iT = getItem(itemIdStr);
+               if (iT) {
+                  let displayPrice = iT.price;
+                  if (iT.type === 'consumable') displayPrice = displayPrice * 2;
+                  
+                  msg += `${index + 1}. ${iT.name} — ${displayPrice} 💰\n`;
+                  keyboard.textButton({ label: `${index + 1}`, payload: { action: 'buy_merchant', itemId: itemIdStr, price: displayPrice }, color: Keyboard.SECONDARY_COLOR });
+                  if ((index + 1) % 4 === 0) keyboard.row();
+               }
+            });
+          }
+          keyboard.row().textButton({ label: '⬅️ Уйти', payload: { command: 'explore_leave' }, color: Keyboard.SECONDARY_COLOR });
+
+          await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          await context.send({ message: `✅ Ты успешно купил ${item.name} за ${customPrice} 💰!\n\n${msg}`, keyboard });
+          return;
+        }
+
         let result = { success: false, message: 'Ошибка' };
         if (payloadAction === 'equip') result = equipItem(char.rpg, payloadItemId, char.charClass);
         else if (payloadAction === 'unequip') result = unequipItem(char.rpg, payloadItemId);
@@ -1891,13 +1938,59 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           
           if (char.rpg.exploreState === 'merchant') {
              if (payloadCommand === 'explore_trade') {
-                // Not fully implemented shop right now, maybe just show a placeholder
-                char.rpg.exploreState = null;
-                await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
-                await context.send({ message: 'Торговец развел руками: "Извини, путник, все товары скупили. Возвращайся позже!" (Механика в разработке)', keyboard: getWildKeyboard(char) });
+                if (!char.rpg.exploreMerchantItems || char.rpg.exploreMerchantItems.length === 0) {
+                    const catalogue = Object.values(ITEM_CATALOG);
+                    const eqs = catalogue.filter(i => ['weapon', 'armor', 'helmet', 'shield', 'accessory'].includes(i.type));
+                    const pots = catalogue.filter(i => i.type === 'consumable');
+                    
+                    const merchantItems = [];
+                    const numEqs = Math.floor(Math.random() * 3) + 1;
+                    const charLvl = char.rpg.level || 1;
+                    
+                    for (let i = 0; i < numEqs; i++) {
+                       const isLegendary = Math.random() < 0.0098;
+                       let pool = isLegendary ? eqs.filter(item => item.rarity === 'legendary') : eqs.filter(item => item.rarity !== 'legendary');
+                       if (pool.length === 0) pool = eqs;
+                       
+                       const chosen = pool[Math.floor(Math.random() * pool.length)];
+                       const addLvl = Math.floor(Math.random() * 16); // 0 to 15
+                       const finalLvl = charLvl + addLvl;
+                       
+                       merchantItems.push(buildItemId(chosen.id, 0, 0, [], finalLvl));
+                    }
+                    
+                    const numPots = Math.floor(Math.random() * 3) + 1;
+                    for (let i = 0; i < numPots; i++) {
+                       const chosen = pots[Math.floor(Math.random() * pots.length)];
+                       merchantItems.push(buildItemId(chosen.id, 0, 0, [], charLvl));
+                    }
+                    
+                    char.rpg.exploreMerchantItems = merchantItems;
+                    await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+                }
+                
+                let msg = `🛒 Странствующий торговец\n"Смотри, что у меня есть, путник!"\nТвое золото: ${char.gold || 0} 💰\n\n`;
+                const keyboard = Keyboard.builder();
+                
+                char.rpg.exploreMerchantItems.forEach((itemId: string, index: number) => {
+                   const item = getItem(itemId);
+                   if (item) {
+                      let displayPrice = item.price;
+                      if (item.type === 'consumable') displayPrice = displayPrice * 2; // More expensive
+                      
+                      msg += `${index + 1}. ${item.name} — ${displayPrice} 💰\n`;
+                      keyboard.textButton({ label: `${index + 1}`, payload: { action: 'buy_merchant', itemId: itemId, price: displayPrice }, color: Keyboard.SECONDARY_COLOR });
+                      if ((index + 1) % 4 === 0) keyboard.row();
+                   }
+                });
+                
+                keyboard.row().textButton({ label: '⬅️ Уйти', payload: { command: 'explore_leave' }, color: Keyboard.SECONDARY_COLOR });
+                
+                await context.send({ message: msg, keyboard });
                 return;
              } else {
                 char.rpg.exploreState = null;
+                delete char.rpg.exploreMerchantItems;
                 await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                 await context.send({ message: 'Вы молча уходите.', keyboard: getWildKeyboard(char) });
                 return;
@@ -1944,9 +2037,19 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
              }
           }
 
+          if (payloadCommand === 'explore_leave_next') {
+             char.rpg.exploreState = null;
+             char.rpg.foundNextDepth = false;
+             char.rpg.dynamicPaths = [];
+             await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+             await context.send({ message: 'Вы решили забыть этот путь и остались на текущем уровне.', keyboard: getWildKeyboard(char) });
+             return;
+          }
+
           if (payloadCommand === 'explore_leave_boss') {
              char.rpg.exploreState = null;
              char.rpg.foundBoss = false;
+             char.rpg.dynamicPaths = [];
              await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
              await context.send({ message: 'Вы незаметно отступили, оставив логово Владыки позади. Придется искать его заново.', keyboard: getWildKeyboard(char) });
              return;
@@ -1967,22 +2070,6 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           return;
         }
         
-        if (payloadCommand === 'explore_leave_next') {
-           if (!char.rpg) char.rpg = DEFAULT_RPG_DATA;
-           char.rpg.foundNextDepth = false;
-           await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
-           await context.send({ message: 'Вы решили не спускаться и потеряли путь в глубины.', keyboard: getWildKeyboard(char) });
-           return;
-        }
-
-        if (payloadCommand === 'explore_leave_boss') {
-           if (!char.rpg) char.rpg = DEFAULT_RPG_DATA;
-           char.rpg.foundBoss = false;
-           await setDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
-           await context.send({ message: 'Вы решили отступить от врат Владыки Леса. Вы потеряли их след в чаще.', keyboard: getWildKeyboard(char) });
-           return;
-        }
-
         if (payloadCommand === 'go_deeper') {
            if (char.location === 'city') return;
            if (!char.rpg) char.rpg = DEFAULT_RPG_DATA;
@@ -2105,7 +2192,8 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               let mId = D_RANK_MOBS[Math.floor(Math.random()*D_RANK_MOBS.length)] || 'mob_loc_city_eldoria_5';
               let m = MONSTER_CATALOG[mId];
               let targetCount = Math.floor(Math.random() * 2) + 2;
-              let loc = WORLD_LOCATIONS[Math.floor(Math.random() * WORLD_LOCATIONS.length)];
+              let wildLocs = WORLD_LOCATIONS.filter(l => l.type !== 'city');
+              let loc = wildLocs.length > 0 ? wildLocs[Math.floor(Math.random() * wildLocs.length)] : WORLD_LOCATIONS[0];
               guildBoard.quests.push({
                  id: 'q_d_' + i + '_' + nowMs,
                  rank: 'D',
@@ -2122,7 +2210,8 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               let mId = C_RANK_MOBS[Math.floor(Math.random()*C_RANK_MOBS.length)] || 'mob_loc_forest_6';
               let m = MONSTER_CATALOG[mId];
               let targetCount = Math.floor(Math.random() * 2) + 2;
-              let loc = WORLD_LOCATIONS[Math.floor(Math.random() * WORLD_LOCATIONS.length)];
+              let wildLocs = WORLD_LOCATIONS.filter(l => l.type !== 'city');
+              let loc = wildLocs.length > 0 ? wildLocs[Math.floor(Math.random() * wildLocs.length)] : WORLD_LOCATIONS[0];
               guildBoard.quests.push({
                  id: 'q_c_' + i + '_' + nowMs,
                  rank: 'C',
@@ -2802,7 +2891,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             rpg: JSON.parse(JSON.stringify(char.rpg)),
             actionEndTime: endTime,
             actionType: 'travel',
-            actionTargetLocation: 'forest',
+            actionTargetLocation: areaId,
             actionNotified: false
           }, { merge: true });
           const kbTravel = Keyboard.builder().textButton({ label: '🚶 Персонаж в пути', payload: { command: 'check_timer' }, color: Keyboard.SECONDARY_COLOR });
@@ -3279,7 +3368,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           currentItems.forEach((invItem: any) => {
             const item = getItem(invItem.itemId);
             if (item) {
-              const sellPrice = Math.floor(item.price / 2);
+              const sellPrice = Math.floor(item.price / 20);
               msg += `${index}. ${item.name} (x${invItem.amount}) — Продать за ${sellPrice} 💰\n`;
               keyboard.textButton({ label: `💰 ${index}`, payload: { command: 'shop_sell_item', itemId: invItem.itemId }, color: Keyboard.NEGATIVE_COLOR });
               index++;
@@ -3307,15 +3396,37 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           
           if (!item) return;
 
-          const invIndex = char.rpg.inventory.findIndex((i: any) => i.itemId === itemId);
-          if (invIndex === -1) {
+          const invItem = char.rpg.inventory.find((i: any) => i.itemId === itemId);
+          if (!invItem) {
             await context.send('У тебя нет этого предмета.');
             return;
           }
 
-          const sellPrice = Math.floor(item.price / 2);
+          if (invItem.amount > 1) {
+            const sellPrice = Math.floor(item.price / 20);
+            let msg = `Сколько ${item.name} ты хочешь продать?\n(Штук в инвентаре: ${invItem.amount})\nЦена за 1: ${sellPrice} 💰`;
+            
+            const keyboard = Keyboard.builder()
+               .textButton({ label: 'Продать 1', payload: { command: 'shop_sell_item_confirm', itemId, amount: 1 }, color: Keyboard.PRIMARY_COLOR });
+            
+            if (invItem.amount >= 5) {
+               keyboard.textButton({ label: 'Продать 5', payload: { command: 'shop_sell_item_confirm', itemId, amount: 5 }, color: Keyboard.PRIMARY_COLOR });
+            }
+            if (invItem.amount > 1) {
+               keyboard.textButton({ label: `Продать все (${invItem.amount})`, payload: { command: 'shop_sell_item_confirm', itemId, amount: invItem.amount }, color: Keyboard.NEGATIVE_COLOR });
+            }
+            keyboard.row();
+            keyboard.textButton({ label: '🔙 Вернуться к продаже', payload: { command: 'shop_sell_menu' }, color: Keyboard.SECONDARY_COLOR });
+            
+            await context.send({ message: msg, keyboard });
+            return;
+          }
+
+          // If only 1, sell directly
+          const sellPrice = Math.floor(item.price / 20);
           char.gold = (char.gold || 0) + sellPrice;
           
+          const invIndex = char.rpg.inventory.findIndex((i: any) => i.itemId === itemId);
           char.rpg.inventory[invIndex].amount -= 1;
           if (char.rpg.inventory[invIndex].amount <= 0) {
             char.rpg.inventory.splice(invIndex, 1);
@@ -3328,6 +3439,35 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             ;
             
           await context.send({ message: `✅ Ты продал ${item.name} за ${sellPrice} 💰! Теперь у тебя ${char.gold} 💰.`, keyboard });
+          return;
+        }
+
+        if (payloadCommand === 'shop_sell_item_confirm') {
+          const itemId = context.messagePayload.itemId;
+          const sellAmount = context.messagePayload.amount || 1;
+          const item = getItem(itemId);
+          if (!item) return;
+          
+          const invIndex = char.rpg.inventory.findIndex((i: any) => i.itemId === itemId);
+          if (invIndex === -1 || char.rpg.inventory[invIndex].amount < sellAmount) {
+             await context.send('Недостаточно предметов для продажи.');
+             return;
+          }
+          
+          const sellPrice = Math.floor(item.price / 20) * sellAmount;
+          char.gold = (char.gold || 0) + sellPrice;
+          char.rpg.inventory[invIndex].amount -= sellAmount;
+          if (char.rpg.inventory[invIndex].amount <= 0) {
+            char.rpg.inventory.splice(invIndex, 1);
+          }
+
+          await setDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          
+          const keyboard = Keyboard.builder()
+            .textButton({ label: '🔙 Вернуться к продаже', payload: { command: 'shop_sell_menu' }, color: Keyboard.PRIMARY_COLOR })
+            ;
+            
+          await context.send({ message: `✅ Ты продал ${item.name} (x${sellAmount}) за ${sellPrice} 💰! Теперь у тебя ${char.gold} 💰.`, keyboard });
           return;
         }
 
@@ -3446,7 +3586,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             if (item) {
               invMsg += `${index}. ${item.name} (x${i.amount})\n`;
               if (item.type === 'consumable') {
-                keyboard.textButton({ label: `Использовать ${index}`, payload: { action: 'use', itemId: item.id }, color: Keyboard.POSITIVE_COLOR });
+                keyboard.textButton({ label: `Использовать ${index}`, payload: { action: 'use', itemId: i.itemId }, color: Keyboard.POSITIVE_COLOR });
                 hasConsumables = true;
               }
               index++;
@@ -3583,7 +3723,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             if (item) {
               if (!equippedItems.has(i.itemId)) {
                 eqMsg += `${iIndex}. ${item.name}\n`;
-                keyboard.textButton({ label: `🔍 ${iIndex}`, payload: { command: `eq_item_view`, itemId: item.id, category }, color: Keyboard.SECONDARY_COLOR });
+                keyboard.textButton({ label: `🔍 ${iIndex}`, payload: { command: `eq_item_view`, itemId: i.itemId, category }, color: Keyboard.SECONDARY_COLOR });
                 iIndex++;
               }
             }

@@ -7206,9 +7206,9 @@ export const ITEM_CATALOG: Record<string, Item> = {
   "enhance_stone_3": { "id": "enhance_stone_3", "name": "Большой Кристалл Энд", "type": "material", "rarity": "rare", "price": 2000, "description": "Используется у кузнеца для заточки снаряжения." },
   "enhance_stone_4": { "id": "enhance_stone_4", "name": "Великий Кристалл Энд", "type": "material", "rarity": "epic", "price": 10000, "description": "Используется у кузнеца для заточки снаряжения." },
   "enhance_stone_5": { "id": "enhance_stone_5", "name": "Легендарный Кристалл Энд", "type": "material", "rarity": "legendary", "price": 50000, "description": "Используется у кузнеца для заточки снаряжения." },
-  "mat_pelt_1": { "id": "mat_pelt_1", "name": "Обычная Шкура", "type": "material", "rarity": "common", "price": 15, "description": "Шкура зверя. Можно продать в магазине." },
-  "mat_pelt_2": { "id": "mat_pelt_2", "name": "Крепкая Шкура", "type": "material", "rarity": "uncommon", "price": 60, "description": "Шкура сильного зверя. Можно продать в магазине." },
-  "mat_pelt_3": { "id": "mat_pelt_3", "name": "Редкая Шкура", "type": "material", "rarity": "rare", "price": 250, "description": "Ценная шкура. Можно продать в магазине." },
+  "mat_pelt_1": { "id": "mat_pelt_1", "name": "Обычная Шкура", "type": "material", "rarity": "common", "price": 100, "description": "Шкура зверя. Можно продать в магазине." },
+  "mat_pelt_2": { "id": "mat_pelt_2", "name": "Крепкая Шкура", "type": "material", "rarity": "uncommon", "price": 200, "description": "Шкура сильного зверя. Можно продать в магазине." },
+  "mat_pelt_3": { "id": "mat_pelt_3", "name": "Редкая Шкура", "type": "material", "rarity": "rare", "price": 400, "description": "Ценная шкура. Можно продать в магазине." },
   "mat_bone_1": { "id": "mat_bone_1", "name": "Кость Монстра", "type": "material", "rarity": "common", "price": 10, "description": "Обычная кость. Можно продать." },
   "mat_fang_1": { "id": "mat_fang_1", "name": "Клык Зверя", "type": "material", "rarity": "uncommon", "price": 45, "description": "Острый клык. Можно продать." }
 

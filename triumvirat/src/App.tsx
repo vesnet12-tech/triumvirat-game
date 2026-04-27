@@ -245,6 +245,9 @@ export default function App() {
     const fetchStatus = async () => {
       try {
         const res = await fetch('/api/status');
+        if (!res.ok) {
+          throw new Error(`Server responded with ${res.status}: ${res.statusText}`);
+        }
         const data = await res.json();
         setStatus(data);
       } catch (e) {

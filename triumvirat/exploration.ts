@@ -104,20 +104,46 @@ export function handleExplorationEvent(char: any, command: string): { msg: strin
    const loc = WORLD_LOCATIONS.find(l => l.id === locId);
    const depth = char.rpg.locationDepth || 1;
    
+   const overrideRoll = Math.random();
+   if (overrideRoll < 0.01) {
+       // 1% exact chance for healing stream
+       char.rpg.exploreState = 'healing_stream';
+       return { msg: `💧 Вы нашли бьющий из-под земли целебный источник. Вода кристально чистая и сверкает.` };
+   } else if (overrideRoll < 0.03) {
+       // 2% exact chance (0.01 to 0.03) for potion
+       char.rpg.inventory = char.rpg.inventory || [];
+       let pot = 'cons_1';
+       let potName = 'Малое зелье здоровья';
+       const r = Math.random() * 125;
+       if (r < 5) {
+           pot = 'cons_4';
+           potName = 'Эликсир Жизни';
+       } else if (r < 15) {
+           pot = 'cons_3';
+           potName = 'Большое зелье здоровья';
+       } else if (r < 45) {
+           pot = 'cons_2';
+           potName = 'Среднее зелье здоровья';
+       }
+       
+       const ex = char.rpg.inventory.find((i:any)=>i.itemId===pot);
+       if (ex) ex.amount++;
+       else char.rpg.inventory.push({ itemId: pot, amount: 1 });
+       return { msg: `💫 Осматривая кусты, вы нашли ${potName}!` };
+   }
+   
    // Re-roll dynamic paths on move
    char.rpg.dynamicPaths = generatePaths(command);
    
    let eventTableOpts = [
-      { type: 'monster', weight: 30 },
-      { type: 'treasure', weight: 15 },
+      { type: 'monster', weight: 40 },
+      { type: 'treasure', weight: 12 },
       { type: 'merchant', weight: 8 },
       { type: 'trap', weight: 12 },
-      { type: 'healing_stream', weight: 8 },
-      { type: 'evil_npc', weight: 10 },
-      { type: 'nothing', weight: 15 },
-      { type: 'obstacle', weight: 10 },
-      { type: 'dead_end', weight: 10 },
-      { type: 'npc_encounter', weight: 10 }
+      { type: 'evil_npc', weight: 8 },
+      { type: 'nothing', weight: 10 },
+      { type: 'obstacle', weight: 5 },
+      { type: 'dead_end', weight: 5 }
    ];
    
    if (depth < 3 && !char.rpg.foundNextDepth) {

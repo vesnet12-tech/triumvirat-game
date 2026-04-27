@@ -6,16 +6,18 @@ import { WORLD_LOCATIONS } from './locations.js';
 export interface Enemy {
   id: string;
   name: string;
+  level?: number;
+  type?: string;
   hp: number;
   maxHp: number;
   attack: number;
   defense: number;
   magicAttack?: number;
   magicDefense?: number;
-  agility: number;
-  xpReward: number;
+  agility?: number;
+  xpReward?: number;
   goldReward: number;
-  loot: { itemId: string; chance: number }[];
+  loot?: { itemId: string; chance: number }[];
 }
 
 export function generateEnemy(level: number, forceName?: string, locationId?: string, depthObj?: number): Enemy {
@@ -51,9 +53,17 @@ export function generateEnemy(level: number, forceName?: string, locationId?: st
 
   if (forceName) {
     const searchName = forceName.toLowerCase().replace(/['"]/g, '').trim();
+    // First try the local allowed monsters
     base = allowedMonstersObj.find(m => m.name.toLowerCase() === searchName);
     if (!base) {
       base = allowedMonstersObj.find(m => m.name.toLowerCase().includes(searchName) || searchName.includes(m.name.toLowerCase()));
+    }
+    // If not found, try ALL monsters so quest monsters can appear!
+    if (!base) {
+       base = monsters.find(m => m.name.toLowerCase() === searchName);
+    }
+    if (!base) {
+       base = monsters.find(m => m.name.toLowerCase().includes(searchName) || searchName.includes(m.name.toLowerCase()));
     }
   }
 
@@ -64,7 +74,6 @@ export function generateEnemy(level: number, forceName?: string, locationId?: st
 
   // Fallback if allowed is completely empty (shouldn't happen)
   if (!base) {
-    console.error(`No monsters available for generation! (location: ${locationId})`);
     base = monsters[Math.floor(Math.random() * monsters.length)];
   }
   
@@ -75,7 +84,7 @@ export function generateEnemy(level: number, forceName?: string, locationId?: st
   
   const targetLevel = Math.max(base.level, effectiveLevel + locationOffset);
 
-  const scale = 1 + Math.max(0, (targetLevel - base.level) * 0.15); // increased scaling
+  const scale = 1.3 + Math.max(0, (targetLevel - base.level) * 0.20); // Buffed scaling significantly
   
   const baseHp = base.hp || 10;
   const baseAttack = base.attack || 5;
@@ -294,11 +303,11 @@ function handleVictory(enemy: any, log: string, rpg: any) {
   const diff = (enemy.level || 1) - rpg.level;
   let xp = 0;
   if (diff === 0) {
-    xp = 400;
+    xp = 200;
   } else if (diff > 0) {
-    xp = 400 + diff * 100;
+    xp = 200 + diff * 100;
   } else {
-    xp = Math.floor(400 / Math.pow(2, Math.abs(diff)));
+    xp = Math.floor(200 / Math.pow(2, Math.abs(diff)));
   }
   
   if (enemy.isBoss) {
