@@ -26,5 +26,8 @@ service cloud.firestore {
     match /npcs/{npcId} {
       allow read, write: if true;
     }
+    match /processed_messages/{messageId} {
+      allow read, write: if true;
+    }
   }
 }

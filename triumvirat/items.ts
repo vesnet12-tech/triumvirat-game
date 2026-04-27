@@ -601,7 +601,7 @@ export const ITEM_CATALOG: Record<string, Item> = {
     "name": "Среднее зелье здоровья",
     "rarity": "uncommon",
     "healAmount": 150,
-    "price": 120,
+    "price": 100,
     "type": "consumable",
     "description": "Восстанавливает 150 ХП."
   },
@@ -610,7 +610,7 @@ export const ITEM_CATALOG: Record<string, Item> = {
     "name": "Большое зелье здоровья",
     "rarity": "rare",
     "healAmount": 400,
-    "price": 400,
+    "price": 200,
     "type": "consumable",
     "description": "Восстанавливает 400 ХП."
   },
@@ -619,7 +619,7 @@ export const ITEM_CATALOG: Record<string, Item> = {
     "name": "Эликсир Жизни",
     "rarity": "epic",
     "healAmount": 1000,
-    "price": 1500,
+    "price": 500,
     "type": "consumable",
     "description": "Восстанавливает 1000 ХП."
   },
@@ -7442,7 +7442,7 @@ export const ITEM_CATALOG: Record<string, Item> = {
   "enhance_stone_3": { "id": "enhance_stone_3", "name": "Большой Кристалл Энд", "type": "material", "rarity": "rare", "price": 2000, "description": "Используется у кузнеца для заточки снаряжения." },
   "enhance_stone_4": { "id": "enhance_stone_4", "name": "Великий Кристалл Энд", "type": "material", "rarity": "epic", "price": 10000, "description": "Используется у кузнеца для заточки снаряжения." },
   "enhance_stone_5": { "id": "enhance_stone_5", "name": "Легендарный Кристалл Энд", "type": "material", "rarity": "legendary", "price": 50000, "description": "Используется у кузнеца для заточки снаряжения." },
-  "mat_pelt_1": { "id": "mat_pelt_1", "name": "Обычная Шкура", "type": "material", "rarity": "common", "price": 100, "description": "Шкура зверя. Можно продать в магазине." },
+  "mat_pelt_1": { "id": "mat_pelt_1", "name": "Обычная Шкура", "type": "material", "rarity": "common", "price": 80, "description": "Шкура зверя. Можно продать в магазине." },
   "mat_pelt_2": { "id": "mat_pelt_2", "name": "Крепкая Шкура", "type": "material", "rarity": "uncommon", "price": 300, "description": "Шкура сильного зверя. Можно продать в магазине." },
   "mat_pelt_3": { "id": "mat_pelt_3", "name": "Редкая Шкура", "type": "material", "rarity": "rare", "price": 400, "description": "Ценная шкура. Можно продать в магазине." },
   "mat_bone_1": { "id": "mat_bone_1", "name": "Кость Монстра", "type": "material", "rarity": "common", "price": 50, "description": "Обычная кость. Можно продать." },

@@ -6,7 +6,7 @@ import cors from 'cors';
 import path from 'path';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, query, where, deleteDoc, writeBatch, setLogLevel } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, query, where, deleteDoc, writeBatch, setLogLevel, runTransaction } from 'firebase/firestore';
 import fs from 'fs';
 import config from './firebase-applet-config.json' assert { type: 'json' };
 import { getItemByName, ITEM_CATALOG, getItem, parseItemId, buildItemId } from './items.js';
@@ -77,6 +77,20 @@ function renderHpBar(hp: number, maxHp: number) {
    return heartsStr;
 }
 
+function createCombatState(enemy: any, extra = {}) {
+  return {
+    enemy,
+    isDefending: false,
+    playerCooldowns: {},
+    turnCounter: 1,
+    playerShield: 0,
+    enemyShield: 0,
+    playerStatuses: [],
+    enemyStatuses: [],
+    ...extra
+  };
+}
+
 async function renderCombatUI(context: any, char: any, extraLog = '') {
   const combat = char.rpg.combat;
   const enemy = combat.enemy;
@@ -101,6 +115,8 @@ async function renderCombatUI(context: any, char: any, extraLog = '') {
   const keyboard = Keyboard.builder()
     .textButton({ label: '⚔️ Атака', payload: { command: 'combat_action', combatAction: 'attack' }, color: Keyboard.NEGATIVE_COLOR })
     .textButton({ label: '🛡️ Защита', payload: { command: 'combat_action', combatAction: 'defend' }, color: Keyboard.PRIMARY_COLOR })
+            .row()
+            .textButton({ label: (char.rpg?.activeQuest ? '🔴 Мое задание' : '📋 Управление заданием'), payload: { command: 'guild_my_quest' }, color: (char.rpg?.activeQuest ? Keyboard.NEGATIVE_COLOR : Keyboard.SECONDARY_COLOR) })
     .row()
     .textButton({ label: '✨ Навыки', payload: { command: 'combat_action', combatAction: 'skill' }, color: Keyboard.POSITIVE_COLOR })
     .textButton({ label: '🏃 Побег', payload: { command: 'combat_action', combatAction: 'flee' }, color: Keyboard.SECONDARY_COLOR })
@@ -341,6 +357,13 @@ async function loadSettings() {
   return null;
 }
 
+const processedMessageIds = new Set<string>();
+
+// Cleanup old messages periodically to prevent memory leak
+setInterval(() => {
+  processedMessageIds.clear();
+}, 60 * 60 * 1000); // clear every hour
+
 async function initBot() {
   const settings = await loadSettings();
   if (!settings || !settings.vkToken) {
@@ -367,6 +390,10 @@ async function initBot() {
     return;
   }
 
+  if (vk) {
+    try { await vk.updates.stop(); } catch(e){}
+  }
+  
   vk = new VK({
     token: settings.vkToken,
     pollingGroupId: Number(settings.vkGroupId)
@@ -445,9 +472,20 @@ async function initBot() {
   }
 
   vk.updates.on('message_new', async (context) => {
-    return; // Bot is disabled
+    console.log(`[VK EVENT message_new] Received message from ${context.senderId}, text: ${context.text}, id: ${context.id}, convMsgId: ${context.conversationMessageId}`);
     if (context.isOutbox) return;
     
+    // Deduplication check to prevent multiple instances from replying
+    const uniqueMsgId = context.id || context.conversationMessageId;
+    if (uniqueMsgId) {
+       const msgIdKey = `${context.peerId}_${uniqueMsgId}`;
+       if (processedMessageIds.has(msgIdKey)) {
+           console.log(`[Deduplication] Message ${msgIdKey} already processed. Skipping.`);
+           return;
+       }
+       processedMessageIds.add(msgIdKey);
+    }
+
     const senderId = context.senderId;
     const now = Date.now();
 
@@ -2047,7 +2085,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                         const rez = handleExplorationEvent(freshChar, eventCmd);
                         
                         if (rez.enemyToFight) {
-                           freshChar.rpg.combat = { enemy: rez.enemyToFight, isDefending: false, playerCooldowns: {}, turnCounter: 1, playerShield: 0, enemyShield: 0, playerStatuses: [], enemyStatuses: [] };
+                           freshChar.rpg.combat = createCombatState(rez.enemyToFight);
                            await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(freshChar.rpg)) }, { merge: true });
                            await renderCombatUI(context, freshChar, `\n[СИСТЕМА]: ${rez.msg}`);
                            return;
@@ -2097,7 +2135,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 char.rpg.exploreState = null;
                 const enemy = char.rpg.exploreEnemy;
                 char.rpg.exploreEnemy = null;
-                char.rpg.combat = { enemy, isDefending: false };
+                char.rpg.combat = createCombatState(enemy);
                 await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                 await renderCombatUI(context, char, `💥 Вы бросаетесь в атаку!`);
                 return;
@@ -2109,7 +2147,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 } else {
                    const enemy = char.rpg.exploreEnemy;
                    char.rpg.exploreEnemy = null;
-                   char.rpg.combat = { enemy, isDefending: false };
+                   char.rpg.combat = createCombatState(enemy);
                    await context.send({ message: '❗ Враг вас заметил! Бой начинается не в вашу пользу.'});
                    await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
                    await renderCombatUI(context, char, '');
@@ -2313,7 +2351,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           
           if (rez.enemyToFight) {
              chatHistory.push({ role: 'user', parts: [{ text: `[СИСТЕМА]: Во время исследования локации на игрока напал ${rez.enemyToFight.name}!` }] });
-             char.rpg.combat = { enemy: rez.enemyToFight, isDefending: false, playerCooldowns: {}, turnCounter: 1, playerShield: 0, enemyShield: 0, playerStatuses: [], enemyStatuses: [] };
+             char.rpg.combat = createCombatState(rez.enemyToFight);
              await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
              await renderCombatUI(context, char, rez.msg);
              return;
@@ -2394,7 +2432,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
            }
            
            char.rpg.foundBoss = false;
-           char.rpg.combat = { enemy, isDefending: false, playerCooldowns: {}, turnCounter: 1, playerShield: 0, enemyShield: 0, playerStatuses: [], enemyStatuses: [] };
+           char.rpg.combat = createCombatState(enemy);
            await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
            await renderCombatUI(context, char, `☠️ Вы входите в логово. ${enemy.name} обращает на вас свой яростный взор! Бой начинается!`);
            return;
@@ -2424,7 +2462,10 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             .textButton({ label: '📋 Доска заданий', payload: { command: 'guild_quests' }, color: Keyboard.PRIMARY_COLOR })
             .textButton({ label: '🗣 Поговорить с регистратором', payload: { command: 'guild_talk' }, color: Keyboard.PRIMARY_COLOR })
             .row()
+            .textButton({ label: (char.rpg?.activeQuest ? '🔴 Мое задание' : '📋 Управление заданием'), payload: { command: 'guild_my_quest' }, color: (char.rpg?.activeQuest ? Keyboard.NEGATIVE_COLOR : Keyboard.SECONDARY_COLOR) })
+            .row()
             .textButton({ label: '🏆 Мой ранг', payload: { command: 'profile' }, color: Keyboard.SECONDARY_COLOR })
+            .textButton({ label: '🎟 Рейтинг', payload: { command: 'guild_top' }, color: Keyboard.PRIMARY_COLOR })
             .textButton({ label: '⬅️ В город', payload: { command: 'close_menu' }, color: Keyboard.NEGATIVE_COLOR });
           
           await context.send({ message: `📜 Вы вошли в Гильдию Авантюристов. Шумно, пахнет элем и сталью.\nВаш текущий ранг: ${char.rpg?.guildRank || 'D'}`, keyboard: kb });
@@ -2439,46 +2480,50 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           const D_RANK_MOBS = Object.values(MONSTER_CATALOG).filter(m => m.level >= 1 && m.level <= 15).map(m=>m.id);
           const C_RANK_MOBS = Object.values(MONSTER_CATALOG).filter(m => m.level >= 16 && m.level <= 35).map(m=>m.id);
           
+          
           if (!guildBoard.quests || guildBoard.quests.length === 0 || (nowMs - guildBoard.lastRefresh > limitMs)) {
-            // refresh
             guildBoard.quests = [];
-            for (let i=0; i<2; i++) {
+            const MATERIAL_IDS = ['mat_pelt_1', 'mat_pelt_2', 'mat_bone_1', 'mat_fang_1', 'enhance_stone_1'];
+            for (let i=0; i<3; i++) {
+              let isGather = Math.random() < 0.3;
               let mId = D_RANK_MOBS[Math.floor(Math.random()*D_RANK_MOBS.length)] || 'mob_loc_city_eldoria_5';
               let m = MONSTER_CATALOG[mId];
-              let targetCount = Math.floor(Math.random() * 2) + 2;
+              let targetCount = Math.floor(Math.random() * 3) + 3;
               let wildLocs = WORLD_LOCATIONS.filter(l => l.type !== 'city');
               let loc = wildLocs.length > 0 ? wildLocs[Math.floor(Math.random() * wildLocs.length)] : WORLD_LOCATIONS[0];
-              guildBoard.quests.push({
-                 id: 'q_d_' + i + '_' + nowMs,
-                 rank: 'D',
-                 title: `Истребление: ${m.name}`,
-                 targetId: mId,
-                 targetCount: targetCount,
-                 locationName: loc.name,
-                 desc: `Требуется убить ${targetCount} ${m.name}. Локация: ${loc.name}. Рекомендуемый уровень: ${m.level}-${m.level+5}`,
-                 xpReward: m.level * 40 * targetCount,
-                 goldReward: Math.max(150, m.level * 50 * targetCount)
-              });
-            }
-            for (let i=0; i<2; i++) {
-              let mId = C_RANK_MOBS[Math.floor(Math.random()*C_RANK_MOBS.length)] || 'mob_loc_forest_6';
-              let m = MONSTER_CATALOG[mId];
-              let targetCount = Math.floor(Math.random() * 2) + 2;
-              let wildLocs = WORLD_LOCATIONS.filter(l => l.type !== 'city');
-              let loc = wildLocs.length > 0 ? wildLocs[Math.floor(Math.random() * wildLocs.length)] : WORLD_LOCATIONS[0];
-              guildBoard.quests.push({
-                 id: 'q_c_' + i + '_' + nowMs,
-                 rank: 'C',
-                 title: `Охота: ${m.name}`,
-                 targetId: mId,
-                 targetCount: targetCount,
-                 locationName: loc.name,
-                 desc: `Требуется убить ${targetCount} опасных ${m.name}. Локация: ${loc.name}. Рекомендуемый уровень: ${m.level}-${m.level+10}`,
-                 xpReward: m.level * 60 * targetCount,
-                 goldReward: Math.max(300, m.level * 70 * targetCount)
-              });
+              
+              if (isGather) {
+                  let matId = MATERIAL_IDS[Math.floor(Math.random()*MATERIAL_IDS.length)];
+                  let matInfo = Object.values(ITEM_CATALOG).find(i => i.id === matId) ||Items?.[matId] || { name: 'Материал' };
+                  guildBoard.quests.push({
+                     id: 'q_d_' + i + '_' + nowMs,
+                     rank: 'D',
+                     type: 'gather',
+                     title: `Сбор: ${matInfo.name}`,
+                     targetId: matId,
+                     targetCount: targetCount,
+                     locationName: 'Любая',
+                     desc: `Соберите ${targetCount} ${matInfo.name} с монстров.`,
+                     xpReward: Math.max(300, m.level * 40 * targetCount),
+                     goldReward: Math.max(200, m.level * 50 * targetCount)
+                  });
+              } else {
+                  guildBoard.quests.push({
+                     id: 'q_d_' + i + '_' + nowMs,
+                     rank: 'D',
+                     type: 'kill',
+                     title: `Истребление: ${m.name}`,
+                     targetId: mId,
+                     targetCount: targetCount,
+                     locationName: loc.name,
+                     desc: `Требуется убить ${targetCount} ${m.name}. Локация: ${loc.name}. Рекомендуемый уровень: ${m.level}-${m.level+5}`,
+                     xpReward: Math.max(300, m.level * 40 * targetCount),
+                     goldReward: Math.max(200, m.level * 50 * targetCount)
+                  });
+              }
             }
             guildBoard.lastRefresh = nowMs;
+
             await safeSetDoc(doc(db, 'sessions', 'guild_quests'), guildBoard, { merge: true });
           }
 
@@ -2524,7 +2569,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
              return;
           }
           
-          char.rpg.activeQuest = Object.assign({}, q);
+          if (char.rpg.activeQuest) { await context.send('Сначала завершите или отмените текущее задание!'); return; } char.rpg.activeQuest = Object.assign({}, q); char.rpg.activeQuest.progress = 0;
           await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           
           await context.send({
@@ -2535,6 +2580,76 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
                 .textButton({ label: '⬅️ В гильдию', payload: { command: 'guild_menu' }, color: Keyboard.SECONDARY_COLOR })
           });
           return;
+        }
+
+        
+        if (payloadCommand === 'guild_my_quest') {
+          if (!char.rpg.activeQuest) {
+             const kb = Keyboard.builder().textButton({ label: '⬅️ Назад', payload: { command: 'guild_menu' }, color: Keyboard.SECONDARY_COLOR });
+             await context.send({ message: 'У вас нет активного задания.', keyboard: kb });
+             return;
+          }
+          const q = char.rpg.activeQuest;
+          const kb = Keyboard.builder();
+          let msg = `🔴 Текущее задание:\n[${q.rank}-ранг] ${q.title}\n${q.desc}\nПрогресс: ${q.progress || 0} / ${q.targetCount}\nНаграда: ${q.goldReward}💰 ${q.xpReward} XP\n`;
+          
+          let canComplete = false;
+          if (q.type === 'gather') {
+             const invItem = (char.rpg.inventory || []).find((i: any) => i.itemId === q.targetId);
+             const amount = invItem ? invItem.amount : 0;
+             msg += `\nВ инвентаре нужных предметов: ${amount} / ${q.targetCount}`;
+             if (amount >= q.targetCount) canComplete = true;
+          } else {
+             if ((q.progress || 0) >= q.targetCount) canComplete = true;
+          }
+
+          if (canComplete) {
+             kb.textButton({ label: '✅ Сдать задание', payload: { command: 'guild_complete_quest' }, color: Keyboard.POSITIVE_COLOR }).row();
+          }
+          kb.textButton({ label: '❌ Отклонить/Уйти', payload: { command: 'guild_abandon_quest' }, color: Keyboard.NEGATIVE_COLOR }).row();
+          kb.textButton({ label: '⬅️ Назад', payload: { command: 'guild_menu' }, color: Keyboard.SECONDARY_COLOR });
+          
+          await context.send({ message: msg, keyboard: kb });
+          return;
+        }
+
+        if (payloadCommand === 'guild_abandon_quest') {
+          char.rpg.activeQuest = null;
+          await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+          const kb = Keyboard.builder().textButton({ label: '⬅️ В гильдию', payload: { command: 'guild_menu' }, color: Keyboard.SECONDARY_COLOR });
+          await context.send({ message: 'Вы отказались от задания.', keyboard: kb });
+          return;
+        }
+
+        if (payloadCommand === 'guild_complete_quest') {
+          if (!char.rpg.activeQuest) return;
+          const q = char.rpg.activeQuest;
+          
+          let canComplete = false;
+          if (q.type === 'gather') {
+             const invIndex = (char.rpg.inventory || []).findIndex((i: any) => i.itemId === q.targetId);
+             if (invIndex >= 0 && char.rpg.inventory[invIndex].amount >= q.targetCount) {
+                 char.rpg.inventory[invIndex].amount -= q.targetCount;
+                 if (char.rpg.inventory[invIndex].amount <= 0) char.rpg.inventory.splice(invIndex, 1);
+                 canComplete = true;
+             }
+          } else {
+             if ((q.progress || 0) >= q.targetCount) canComplete = true;
+          }
+
+          if (canComplete) {
+             char.gold = (char.gold || 0) + q.goldReward;
+             const leveledUp = addXp(char.rpg, q.xpReward);
+             if (!char.rpg.completedQuests) char.rpg.completedQuests = [];
+             char.rpg.completedQuests.push(q.id);
+             char.rpg.activeQuest = null;
+             
+             await safeSetDoc(doc(db, 'characters', char.id), { gold: char.gold, rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
+             
+             const kb = Keyboard.builder().textButton({ label: '⬅️ В гильдию', payload: { command: 'guild_menu' }, color: Keyboard.SECONDARY_COLOR });
+             await context.send({ message: `✅ Задание "\${q.title}" выполнено!\nВы получили ${q.goldReward}💰 и ${q.xpReward} XP.`, keyboard: kb });
+             return;
+          }
         }
 
         if (payloadCommand === 'guild_talk' || (char.location === 'city' && text.includes('регистратор'))) {
@@ -3260,17 +3375,17 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
             };
           }
 
-          char.rpg.combat = {
-            enemy: enemy,
-            isDefending: false,
-            type: 'wild'
-          };
+          char.rpg.combat = createCombatState(enemy, { type: 'wild' });
           
           addLog(`[СИСТЕМА]: ${char.name} нашел монстра ${enemy.name}`);
           
           const result = processCombatTurn(char.rpg, 'attack', undefined, char.charClass);
           
           if (result.won) {
+            if (char.rpg.activeQuest && char.rpg.activeQuest.type !== 'gather' && char.rpg.combat && char.rpg.combat.enemy && char.rpg.activeQuest.targetId === char.rpg.combat.enemy.id) {
+                 char.rpg.activeQuest.progress = (char.rpg.activeQuest.progress || 0) + 1;
+                 (result as any).log += `\n\n🎯 Прогресс задания: ${char.rpg.activeQuest.progress} / ${char.rpg.activeQuest.targetCount}`;
+            }
             char.gold = (char.gold || 0) + result.gold;
             const leveledUp = addXp(char.rpg, result.xp);
             let msg = `🌲 Вы находите врага (${enemy.name}) и сразу атакуете!\n\n${result.log}\n💰 Получено ${result.gold} золота и ${result.xp} XP!`;
@@ -4458,11 +4573,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               skills: ['warrior_skill_1', 'warrior_skill_2']
             };
 
-            char.rpg.combat = {
-              enemy: arenaEnemy, // Arena enemies are significantly harder
-              isDefending: false,
-              type: 'arena'
-            };
+            char.rpg.combat = createCombatState(arenaEnemy, { type: 'arena' });
             await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           }
           await renderCombatUI(context, char, `🎺 Зрители ликуют! Вы вышли на арену против: ${char.rpg.combat.enemy.name}!`);
@@ -4483,10 +4594,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           }
 
           if (!char.rpg.combat) {
-            char.rpg.combat = {
-              enemy: generateEnemy(char.rpg.level),
-              isDefending: false
-            };
+            char.rpg.combat = createCombatState(generateEnemy(char.rpg.level));
             await safeSetDoc(doc(db, 'characters', char.id), { rpg: JSON.parse(JSON.stringify(char.rpg)) }, { merge: true });
           }
           await renderCombatUI(context, char, 'Вы отправились на охоту и встретили врага!');
@@ -4542,7 +4650,7 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
               }
               const color = cd > 0 ? Keyboard.SECONDARY_COLOR : Keyboard.POSITIVE_COLOR;
               msg += `${idx + 1}. ${skill.name}${statusText}\n`;
-              keyboard.textButton({ label: `✨ ${idx + 1}`, payload: { command: 'combat', combatAction: 'skill', skillId: sId }, color });
+              keyboard.textButton({ label: `✨ ${idx + 1}`, payload: { command: 'combat_action', combatAction: 'skill', skillId: sId }, color });
               count++;
               if (count % 3 === 0) keyboard.row();
             }
@@ -4569,6 +4677,10 @@ async function sendPvPKeyboard(userId: number, pvp: any) {
           const result = processCombatTurn(char.rpg, action, skillId, char.charClass);
           
           if (result.won) {
+            if (char.rpg.activeQuest && char.rpg.activeQuest.type !== 'gather' && char.rpg.combat && char.rpg.combat.enemy && char.rpg.activeQuest.targetId === char.rpg.combat.enemy.id) {
+                 char.rpg.activeQuest.progress = (char.rpg.activeQuest.progress || 0) + 1;
+                 (result as any).log += `\n\n🎯 Прогресс задания: ${char.rpg.activeQuest.progress} / ${char.rpg.activeQuest.targetCount}`;
+            }
             char.gold = (char.gold || 0) + result.gold;
             if ((result as any).arenaTokens) {
                char.rpg.arenaTokens = (char.rpg.arenaTokens || 0) + (result as any).arenaTokens;
@@ -5606,10 +5718,7 @@ ${npcsText}
                       };
                    }
                 } catch(e) { console.error('Failed to load NPC for combat', e); }
-                charData.rpg.combat = {
-                  enemy: npcEnemy,
-                  isDefending: false
-                };
+                charData.rpg.combat = createCombatState(npcEnemy);
                 await safeSetDoc(doc(db, 'characters', activeCharDocId), { rpg: JSON.parse(JSON.stringify(charData.rpg)) }, { merge: true });
               }
               await renderCombatUI(context, { id: activeCharDocId, ...charData } as any, 'NPC нападает на вас!');
@@ -5622,10 +5731,7 @@ ${npcsText}
               const charData = docSnap.data();
               if (!charData.rpg) charData.rpg = DEFAULT_RPG_DATA;
               if (!charData.rpg.combat) {
-                charData.rpg.combat = {
-                  enemy: generateEnemy(charData.rpg.level, soloCombatMonsterName),
-                  isDefending: false
-                };
+                charData.rpg.combat = createCombatState(generateEnemy(charData.rpg.level, soloCombatMonsterName));
                 await safeSetDoc(doc(db, 'characters', activeCharDocId), { rpg: JSON.parse(JSON.stringify(charData.rpg)) }, { merge: true });
               }
               await renderCombatUI(context, { id: activeCharDocId, ...charData } as any, 'Вы отправились на охоту и встретили врага!');
@@ -5882,7 +5988,7 @@ ${npcsText}
 
   const startPolling = async (retries = 5) => {
     try {
-      // await vk.updates.start();
+      await vk.updates.start();
 
       console.log('VK Bot polling started');
       addLog('Бот запущен и подключен к ВКонтакте');
